@@ -1,11 +1,11 @@
 #ifndef HARMONIZER_H
 #define HARMONIZER_H
 
-#include <stdio.h>
 #include <errno.h>
+#include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
 #include "jack_backend.h"
 
@@ -32,7 +32,6 @@ void precompute();
  * running, copy the input port to the output.  When it stops, exit.
  */
 
-int
-harmonizer_process( jack_nframes_t nframes, void *arg );
+int harmonizer_process(jack_nframes_t nframes, void *arg);
 
 #endif // HARMONIZER_H

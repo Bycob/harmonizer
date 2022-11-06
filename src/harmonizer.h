@@ -15,9 +15,12 @@ typedef struct {
     jack_backend_t *jack;
     /** rolling buffer of previous data */
     // XXX currently used as single buffer
-    float *prev_buf;
+    float *prev_buf[2];
     /** id of next write in rolling buffer */
-    int prev_idx;
+    // int prev_idx[2];
+    float prev_ratio[2];
+    float prev_period[2];
+    float prev_offset[2];
 } harmonizer_data_t;
 
 extern harmonizer_data_t _harmonizer_data;

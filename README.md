@@ -57,6 +57,23 @@ Normally you should hear a sound
 aconnect -io
 ```
 
+## Install FFTW 3
+
+```bash
+wget https://www.fftw.org/fftw-3.3.10.tar.gz
+tar xvf fftw-3.3.10.tar.gz
+cd fftw-3-3.10
+./configure --enable-float
+make
+make install
+```
+
+if needed to clear the build folder
+
+```bash
+make distclean
+```
+
 ## TODO
 
 - Make config file to detect usual device by name (ex: H2n) and automatically start jack using these devices

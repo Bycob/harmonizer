@@ -44,8 +44,8 @@ cat /proc/asound/cards
 
 Then use script to start jack with the required devices
 ```bash
-# if you want to use device 2 and 3
-scripts/start_jack.sh 2 3
+# if you want to use device 2
+scripts/start_jack.sh 2
 jack_simple_client
 ```
 
@@ -74,6 +74,19 @@ if needed to clear the build folder
 make distclean
 ```
 
+## Install Q library
+
+```bash
+git clone --recurse-submodules https://github.com/cycfi/Q.git
+```
+Then pass the path to cmake:
+```bash
+cmake . -DHARMONIZER_Q_PATH=[custom Q lib path]
+```
+
 ## TODO
 
 - Make config file to detect usual device by name (ex: H2n) and automatically start jack using these devices
+- Offline mode where it takes a wav file and a midi file and outputs the result. Either of both file can be replaced by live input.
+- Record mode where it records the output into a wav file
+- Automated tests

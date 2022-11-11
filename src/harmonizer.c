@@ -1,6 +1,7 @@
 #include <math.h>
 
 #include "harmonizer.h"
+#include "pitch_detection.h"
 
 harmonizer_data_t _harmonizer_data;
 
@@ -34,7 +35,7 @@ float fundamental_period(fftwf_complex *fourier, int nframes) {
             max_idx = i;
         }
     }
-    return max_idx;
+    return max_idx == 0 ? 0 : (float)nframes / max_idx * 2;
 }
 
 /** Linear interpolation
@@ -213,13 +214,20 @@ int harmonizer_process(jack_nframes_t nframes, void *arg) {
                                    nframes);
 
         memset(out, 0.f, nframes * sizeof(jack_default_audio_sample_t));
-        fft(in, _harmonizer_data.fft[i], nframes);
-        float period = fundamental_period(_harmonizer_data.fft[i], nframes);
+        // fft(in, _harmonizer_data.fft[i], nframes);
+        // float period = fundamental_period(_harmonizer_data.fft[i], nframes);
+        float period = detect_period(in, nframes);
         fprintf(stderr, "period = %f\n", period);
         if (period < 1)
             period = 1;
+        while (period > 511)
+            period /= 2;
+
+        float ratio = 184 / period;
+        if (ratio > 2)
+            ratio = 2;
         shift_signal(
-            in, out, nframes, 1.33, period, _harmonizer_data.prev_buf[i],
+            in, out, nframes, ratio, period, _harmonizer_data.prev_buf[i],
             &_harmonizer_data.prev_offset[i], &_harmonizer_data.prev_ratio[i],
             &_harmonizer_data.prev_period[i]);
 

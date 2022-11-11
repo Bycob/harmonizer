@@ -13,6 +13,30 @@ float hann(float t) {
     // return fminf(1, s * s * 50);
 }
 
+void fft(float *in, fftwf_complex *out, int nframes) {
+    fftwf_plan p = fftwf_plan_dft_r2c_1d(nframes, in, out, FFTW_ESTIMATE);
+    fftwf_execute(p);
+    fftwf_destroy_plan(p);
+}
+
+/** Returns the fundamental period, in sample*/
+float fundamental_period(fftwf_complex *fourier, int nframes) {
+    int i;
+    float max_val = 0;
+    float max_idx = 0;
+    const int ignore_edges = 64;
+
+    for (i = ignore_edges; i < nframes / 2 - ignore_edges; ++i) {
+        float val =
+            fourier[i][0] * fourier[i][0] + fourier[i][1] * fourier[i][1];
+        if (val > max_val) {
+            max_val = val;
+            max_idx = i;
+        }
+    }
+    return max_idx;
+}
+
 /** Linear interpolation
  *
  * n size of "values". Is float for an experiment
@@ -34,15 +58,19 @@ void precompute() {
     }
 
     // Init buffers
+    int buf_size = 1024;
     for (i = 0; i < 2; ++i) {
-        _harmonizer_data.prev_buf[i] = (float *)calloc(1024, sizeof(float));
+        _harmonizer_data.prev_buf[i] = (float *)calloc(buf_size, sizeof(float));
         int j;
-        for (j = 0; j < 1024; ++j) {
+        for (j = 0; j < buf_size; ++j) {
             _harmonizer_data.prev_buf[i][j] = 0;
         }
         _harmonizer_data.prev_ratio[i] = 1;
         _harmonizer_data.prev_period[i] = 1;
         _harmonizer_data.prev_offset[i] = 1024;
+
+        _harmonizer_data.fft[i] =
+            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * buf_size);
     }
 }
 
@@ -97,7 +125,6 @@ void wave(float *in, float *out, float in_nframes, int out_a, int out_b,
 void shift_signal(float *in, float *out, int nframes, float ratio, float period,
                   float *prev_buf, float *prev_offset, float *prev_ratio,
                   float *prev_period) {
-    print_array(out + 512, 20);
     float prev_whole_nframes;
     // float frame_shift = modf(nframes / (*prev_period), &whole_nframes) *
     // (*prev_period);
@@ -108,11 +135,13 @@ void shift_signal(float *in, float *out, int nframes, float ratio, float period,
 
     // first wave with old frequency
     float out_nframes = prev_whole_nframes * (*prev_ratio) / 2;
+    // number of frames filled from prev_buffer
+    float out_filled = nframes - *prev_offset;
     // number of frames to fill up from prev_buffer
     // TODO if ratio > 2, out_fillup exceeds number of frames available
-    float out_fillup = out_nframes - (nframes - *prev_offset);
+    float out_fillup = out_nframes - out_filled;
     // starting t in input buffer
-    float tstart = out_fillup / out_nframes / 2;
+    float tstart = out_filled / out_nframes / 2;
 
     if (out_fillup >= 1) {
         wave(prev_buf, out, prev_whole_nframes, 0, (int)out_fillup,
@@ -140,13 +169,14 @@ void shift_signal(float *in, float *out, int nframes, float ratio, float period,
     *prev_offset = out_start;
     float out_end = out_fillup + out_nframes;
     float *from_buf = prev_buf;
+    int from_whole_nframes = prev_whole_nframes;
 
     while (out_start < nframes) {
         float real_out_end = fminf(out_end, nframes);
         float tend = (real_out_end - out_start) / (out_end - out_start) / 2;
 
-        wave(from_buf, out, whole_nframes, (int)out_start, (int)real_out_end,
-             0.5, 0.5 + tend);
+        wave(from_buf, out, from_whole_nframes, (int)out_start,
+             (int)real_out_end, 0.5, 0.5 + tend);
         wave(in, out, whole_nframes, (int)out_start, (int)real_out_end, 0,
              tend);
         fprintf(stderr,
@@ -158,6 +188,7 @@ void shift_signal(float *in, float *out, int nframes, float ratio, float period,
         out_start = out_end;
         out_end = out_start + out_nframes;
         from_buf = in;
+        from_whole_nframes = whole_nframes;
     }
     print_array(prev_buf + 512, 20);
     print_array(out, 20);
@@ -182,10 +213,15 @@ int harmonizer_process(jack_nframes_t nframes, void *arg) {
                                    nframes);
 
         memset(out, 0.f, nframes * sizeof(jack_default_audio_sample_t));
-        shift_signal(in, out, nframes, 0.6666, 1, _harmonizer_data.prev_buf[i],
-                     &_harmonizer_data.prev_offset[i],
-                     &_harmonizer_data.prev_ratio[i],
-                     &_harmonizer_data.prev_period[i]);
+        fft(in, _harmonizer_data.fft[i], nframes);
+        float period = fundamental_period(_harmonizer_data.fft[i], nframes);
+        fprintf(stderr, "period = %f\n", period);
+        if (period < 1)
+            period = 1;
+        shift_signal(
+            in, out, nframes, 1.33, period, _harmonizer_data.prev_buf[i],
+            &_harmonizer_data.prev_offset[i], &_harmonizer_data.prev_ratio[i],
+            &_harmonizer_data.prev_period[i]);
 
         memcpy(_harmonizer_data.prev_buf[i], in,
                nframes * sizeof(jack_default_audio_sample_t));

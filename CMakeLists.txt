@@ -10,5 +10,5 @@ add_executable(harmonizer
     src/main.c
 )
 
-target_link_libraries(harmonizer m jack)
+target_link_libraries(harmonizer fftw3f m jack)
 

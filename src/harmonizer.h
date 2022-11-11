@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <fftw3.h>
+
 #include "jack_backend.h"
 
 // TODO use jack audio type to switch easily between double & floats
@@ -21,6 +23,9 @@ typedef struct {
     float prev_ratio[2];
     float prev_period[2];
     float prev_offset[2];
+
+    /** preallocated buffers to compute the fft */
+    fftwf_complex *fft[2];
 } harmonizer_data_t;
 
 extern harmonizer_data_t _harmonizer_data;

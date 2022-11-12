@@ -62,19 +62,27 @@ void precompute() {
     int buf_size = 1024;
     for (i = 0; i < 2; ++i) {
         _harmonizer_data.prev_buf[i] = (float *)calloc(buf_size, sizeof(float));
-        int j;
-        for (j = 0; j < buf_size; ++j) {
-            _harmonizer_data.prev_buf[i][j] = 0;
-        }
-        _harmonizer_data.prev_ratio[i] = 1;
         _harmonizer_data.prev_period[i] = 1;
-        _harmonizer_data.prev_offset[i] = 1024;
-
         _harmonizer_data.fft[i] =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * buf_size);
 
         _harmonizer_data.pitch_detect[i] = alloc_pitch_detection_data();
+
+        int v_id;
+        for (v_id = 0; v_id < MAX_HARMONIZER_VOICES; ++v_id) {
+            harmonizer_voice_t *voice = &_harmonizer_data.voices[v_id];
+            voice->active = false;
+
+            voice->prev_ratio[i] = 1;
+            voice->prev_offset[i] = 1024;
+        }
     }
+
+    // Setup voices
+    _harmonizer_data.voices[0].active = true;
+    _harmonizer_data.voices[0].target_period = 184;
+    _harmonizer_data.voices[1].active = true;
+    _harmonizer_data.voices[1].target_period = 184 * 1.25;
 }
 
 // DEBUG
@@ -127,12 +135,12 @@ void wave(float *in, float *out, float in_nframes, int out_a, int out_b,
  */
 void shift_signal(float *in, float *out, int nframes, float ratio, float period,
                   float *prev_buf, float *prev_offset, float *prev_ratio,
-                  float *prev_period) {
+                  float prev_period) {
     float prev_whole_nframes;
     // float frame_shift = modf(nframes / (*prev_period), &whole_nframes) *
     // (*prev_period);
-    modff(nframes / (*prev_period) / 2, &prev_whole_nframes);
-    prev_whole_nframes *= (*prev_period) * 2;
+    modff(nframes / prev_period / 2, &prev_whole_nframes);
+    prev_whole_nframes *= prev_period * 2;
     // float tshift = frame_shift / nframes * 2;
     // float neg_tshift = tshift - (*prev_period) / nframes * 2;
 
@@ -197,7 +205,6 @@ void shift_signal(float *in, float *out, int nframes, float ratio, float period,
     print_array(out, 20);
 
     *prev_ratio = ratio;
-    *prev_period = period;
 }
 
 int harmonizer_process(jack_nframes_t nframes, void *arg) {
@@ -217,7 +224,8 @@ int harmonizer_process(jack_nframes_t nframes, void *arg) {
 
         memset(out, 0.f, nframes * sizeof(jack_default_audio_sample_t));
         // fft(in, _harmonizer_data.fft[i], nframes);
-        // float period = fundamental_period(_harmonizer_data.fft[i], nframes);
+        // float period = fundamental_period(_harmonizer_data.fft[i],
+        // nframes);
         float period = detect_period_continuous(
             _harmonizer_data.pitch_detect[i], in, nframes);
         fprintf(stderr, "period = %f\n", period);
@@ -226,14 +234,22 @@ int harmonizer_process(jack_nframes_t nframes, void *arg) {
         while (period > 511)
             period /= 2;
 
-        float ratio = 184 / period;
-        if (ratio > 2)
-            ratio = 2;
-        shift_signal(
-            in, out, nframes, ratio, period, _harmonizer_data.prev_buf[i],
-            &_harmonizer_data.prev_offset[i], &_harmonizer_data.prev_ratio[i],
-            &_harmonizer_data.prev_period[i]);
+        int v_id;
+        for (v_id = 0; v_id < MAX_HARMONIZER_VOICES; ++v_id) {
+            harmonizer_voice_t *voice = &_harmonizer_data.voices[v_id];
 
+            if (!voice->active) {
+                continue;
+            }
+            float ratio = voice->target_period / period;
+            if (ratio > 2)
+                ratio = 2;
+            shift_signal(in, out, nframes, ratio, period,
+                         _harmonizer_data.prev_buf[i], &voice->prev_offset[i],
+                         &voice->prev_ratio[i],
+                         _harmonizer_data.prev_period[i]);
+        }
+        _harmonizer_data.prev_period[i] = period;
         memcpy(_harmonizer_data.prev_buf[i], in,
                nframes * sizeof(jack_default_audio_sample_t));
     }

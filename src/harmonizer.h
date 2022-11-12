@@ -14,16 +14,26 @@
 
 // TODO use jack audio type to switch easily between double & floats
 
+#define MAX_HARMONIZER_VOICES 8
+
+typedef struct {
+    bool active;
+    float target_period;
+
+    float prev_ratio[2];
+    float prev_offset[2];
+} harmonizer_voice_t;
+
 typedef struct {
     jack_backend_t *jack;
+    harmonizer_voice_t voices[MAX_HARMONIZER_VOICES];
+
+    float prev_period[2];
     /** rolling buffer of previous data */
     // XXX currently used as single buffer
     float *prev_buf[2];
     /** id of next write in rolling buffer */
     // int prev_idx[2];
-    float prev_ratio[2];
-    float prev_period[2];
-    float prev_offset[2];
 
     /** preallocated buffers to compute the fft */
     fftwf_complex *fft[2];

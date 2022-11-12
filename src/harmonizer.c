@@ -82,7 +82,9 @@ void precompute() {
     _harmonizer_data.voices[0].active = true;
     _harmonizer_data.voices[0].target_period = 184;
     _harmonizer_data.voices[1].active = true;
-    _harmonizer_data.voices[1].target_period = 184 * 1.25;
+    _harmonizer_data.voices[1].target_period = 184 / 1.25;
+    _harmonizer_data.voices[2].active = true;
+    _harmonizer_data.voices[2].target_period = 184 / 1.5;
 }
 
 // DEBUG
@@ -102,19 +104,23 @@ void wave(float *in, float *out, float in_nframes, int out_a, int out_b,
           float ta, float tb) {
     int i;
     const int out_count = out_b - out_a;
+    /*
     fprintf(stderr, "in_nframes %f out_a %d out_b %d ta %f tb %f\n", in_nframes,
             out_a, out_b, ta, tb);
+            */
 
     for (i = 0; i < out_count; ++i) {
         const float t = (float)i / out_count * (tb - ta) + ta;
         float h = t < 0.5 ? hann(t) : 1 - hann(t);
         out[out_a + i] += lerp(in, t, in_nframes) * hann(t);
+        /*
         if (i == 100) {
             fprintf(stderr,
                     "%d: %f, frames = %f, hann = %f, in = %f, lerp = %f\n", i,
                     t, in_nframes, hann(t), in[(int)(t * in_nframes)],
                     lerp(in, t, in_nframes));
         }
+        */
     }
 }
 
@@ -201,8 +207,6 @@ void shift_signal(float *in, float *out, int nframes, float ratio, float period,
         from_buf = in;
         from_whole_nframes = whole_nframes;
     }
-    print_array(prev_buf + 512, 20);
-    print_array(out, 20);
 
     *prev_ratio = ratio;
 }
@@ -229,10 +233,14 @@ int harmonizer_process(jack_nframes_t nframes, void *arg) {
         float period = detect_period_continuous(
             _harmonizer_data.pitch_detect[i], in, nframes);
         fprintf(stderr, "period = %f\n", period);
-        if (period < 1)
+        if (period < 1 || period > 511)
             period = _harmonizer_data.prev_period[i];
-        while (period > 511)
-            period /= 2;
+        // frequency stabilisation
+        if (fabs(period - 2 * _harmonizer_data.prev_period[i]) <
+            _harmonizer_data.prev_period[i] * 0.01) {
+            period = _harmonizer_data.prev_period[i];
+        }
+        fprintf(stderr, "retained period = %f\n", period);
 
         int v_id;
         for (v_id = 0; v_id < MAX_HARMONIZER_VOICES; ++v_id) {

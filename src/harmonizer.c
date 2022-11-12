@@ -72,6 +72,8 @@ void precompute() {
 
         _harmonizer_data.fft[i] =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * buf_size);
+
+        _harmonizer_data.pitch_detect[i] = alloc_pitch_detection_data();
     }
 }
 
@@ -216,10 +218,11 @@ int harmonizer_process(jack_nframes_t nframes, void *arg) {
         memset(out, 0.f, nframes * sizeof(jack_default_audio_sample_t));
         // fft(in, _harmonizer_data.fft[i], nframes);
         // float period = fundamental_period(_harmonizer_data.fft[i], nframes);
-        float period = detect_period(in, nframes);
+        float period = detect_period_continuous(
+            _harmonizer_data.pitch_detect[i], in, nframes);
         fprintf(stderr, "period = %f\n", period);
         if (period < 1)
-            period = 1;
+            period = _harmonizer_data.prev_period[i];
         while (period > 511)
             period /= 2;
 

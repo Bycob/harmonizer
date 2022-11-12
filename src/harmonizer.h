@@ -10,6 +10,7 @@
 #include <fftw3.h>
 
 #include "jack_backend.h"
+#include "pitch_detection.h"
 
 // TODO use jack audio type to switch easily between double & floats
 
@@ -26,6 +27,7 @@ typedef struct {
 
     /** preallocated buffers to compute the fft */
     fftwf_complex *fft[2];
+    pitch_detection_data pitch_detect[2];
 } harmonizer_data_t;
 
 extern harmonizer_data_t _harmonizer_data;

@@ -258,6 +258,14 @@ int harmonizer_process(jack_nframes_t nframes, void *arg) {
                          _harmonizer_data.prev_period[i]);
         }
         _harmonizer_data.prev_period[i] = period;
+
+        // add original signal * 2
+        int u;
+        for (u = 0; u < nframes; ++u) {
+            out[u] += in[u] * 2;
+            out[u] /= 2;
+        }
+
         memcpy(_harmonizer_data.prev_buf[i], in,
                nframes * sizeof(jack_default_audio_sample_t));
     }

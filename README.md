@@ -86,7 +86,8 @@ cmake . -DHARMONIZER_Q_PATH=[custom Q lib path]
 
 ## TODO
 
+- Record mode where it records the output into a wav file
+- Record detected frequency in a file for debugging and python testing
 - Make config file to detect usual device by name (ex: H2n) and automatically start jack using these devices
 - Offline mode where it takes a wav file and a midi file and outputs the result. Either of both file can be replaced by live input.
-- Record mode where it records the output into a wav file
 - Automated tests

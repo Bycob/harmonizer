@@ -1,0 +1,3 @@
+[submodule "third_party/tinywav"]
+	path = third_party/tinywav
+	url = https://github.com/mhroth/tinywav.git

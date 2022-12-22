@@ -98,8 +98,7 @@ int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
 
     // save as needed
     if (_harmonizer_app.params.wav_out_fname) {
-        tinywav_write_f(&_harmonizer_app.wav_out, out,
-                        sizeof(sample_t) * nframes * HARMONIZER_CHANNELS);
+        tinywav_write_f(&_harmonizer_app.wav_out, out, nframes);
     }
 
     return 0;

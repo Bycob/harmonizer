@@ -206,12 +206,21 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
     }
 
     // Setup voices
+    // TODO use midi input
     dsp->voices[0].active = true;
     dsp->voices[0].target_period = 184;
     dsp->voices[1].active = true;
     dsp->voices[1].target_period = 184 / 1.25;
     dsp->voices[2].active = true;
     dsp->voices[2].target_period = 184 / 1.5;
+
+    // Debug pitch detection
+    dsp->pitch_log_file = NULL;
+}
+
+void harmonizer_dsp_log_pitch(harmonizer_dsp_t *dsp, char *filename) {
+    dsp->pitch_log_file = fopen(filename, "w");
+    // TODO manage errors
 }
 
 int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
@@ -227,9 +236,14 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         // fft(in, dsp->fft[i], nframes);
         // float period = fundamental_period(dsp->fft[i],
         // nframes);
+        // pitch detection
         float period =
             detect_period_continuous(dsp->pitch_detect[i], in, nframes);
         fprintf(stderr, "period = %f\n", period);
+        if (dsp->pitch_log_file != NULL) {
+            fprintf(dsp->pitch_log_file, "%0.2f\n", period);
+        }
+
         if (period < 1 || period > 511)
             period = dsp->prev_period[i];
         // frequency stabilisation
@@ -268,4 +282,8 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
     return 0;
 }
 
-void harmonizer_dsp_destroy(harmonizer_dsp_t *dsp) {}
+void harmonizer_dsp_destroy(harmonizer_dsp_t *dsp) {
+    if (dsp->pitch_log_file != NULL) {
+        fclose(dsp->pitch_log_file);
+    }
+}

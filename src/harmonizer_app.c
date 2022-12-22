@@ -20,6 +20,7 @@ void init_harmonizer_app(int argc, char **argv) {
     harmonizer_app_params_t params;
     // TODO parse arguments
     params.use_jack_in = true;
+    params.wav_input_out_fname = "harmonizer_input.wav";
     params.wav_out_fname = "harmonizer_output.wav";
 
     _harmonizer_app.params = params;
@@ -29,6 +30,11 @@ void init_harmonizer_app(int argc, char **argv) {
                                       TW_FLOAT32, TW_SPLIT,
                                       params.wav_out_fname));
         // fprintf(stderr, "Output file %s could not be opened.", filename)
+    }
+    if (params.wav_input_out_fname != NULL) {
+        HANDLE_ERR(tinywav_open_write(&_harmonizer_app.wav_input_out, 2, 48000,
+                                      TW_FLOAT32, TW_SPLIT,
+                                      params.wav_input_out_fname));
     }
     if (params.use_jack_in) {
 
@@ -43,6 +49,8 @@ void init_harmonizer_app(int argc, char **argv) {
     }
 
     harmonizer_dsp_init(&_harmonizer_app.dsp);
+    // TODO remove & use parameters
+    harmonizer_dsp_log_pitch(&_harmonizer_app.dsp, "pitch_log.txt");
 }
 
 void run_harmonizer_app() {
@@ -94,6 +102,10 @@ int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
             jack_port_get_buffer(_harmonizer_app.jack.output_ports[i], nframes);
     }
 
+    if (_harmonizer_app.params.wav_input_out_fname) {
+        tinywav_write_f(&_harmonizer_app.wav_input_out, in, nframes);
+    }
+
     harmonizer_dsp_process(&_harmonizer_app.dsp, nframes, in, out);
 
     // save as needed
@@ -111,6 +123,9 @@ void destroy_harmonizer_app() {
     }
 
     // close all files
+    if (_harmonizer_app.params.wav_input_out_fname) {
+        tinywav_close_write(&_harmonizer_app.wav_input_out);
+    }
     if (_harmonizer_app.params.wav_out_fname) {
         tinywav_close_write(&_harmonizer_app.wav_out);
     }

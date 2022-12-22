@@ -24,8 +24,8 @@ typedef struct {
     bool active;
     float target_period;
 
-    float prev_ratio[2];
-    float prev_offset[2];
+    float prev_ratio[HARMONIZER_CHANNELS];
+    float prev_offset[HARMONIZER_CHANNELS];
 } harmonizer_voice_t;
 
 /** Harmonizer "Digital Signal Processor" */
@@ -42,9 +42,14 @@ typedef struct {
     /** preallocated buffers to compute the fft */
     fftwf_complex *fft[HARMONIZER_CHANNELS];
     pitch_detection_data pitch_detect[HARMONIZER_CHANNELS];
+
+    /** file to log result of pitch detection for debugging */
+    FILE *pitch_log_file;
 } harmonizer_dsp_t;
 
 void harmonizer_dsp_init(harmonizer_dsp_t *dsp);
+
+void harmonizer_dsp_log_pitch(harmonizer_dsp_t *dsp, char *filename);
 
 /**
  * Main fonction for harmonizer processing. Takes a number of frames, input

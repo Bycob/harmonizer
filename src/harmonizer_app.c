@@ -100,6 +100,18 @@ void init_harmonizer_app(int argc, char **argv) {
 
     _harmonizer_app.params = params;
 
+    _harmonizer_app.use_jack = params.use_jack_in || params.use_jack_out;
+    int i;
+    for (i = 0; i < HARMONIZER_CHANNELS; ++i) {
+        _harmonizer_app.in[i] = NULL;
+        _harmonizer_app.out[i] = NULL;
+    }
+
+    if (!_harmonizer_app.use_jack) {
+        // can't use midi in offline process
+        _harmonizer_app.params.use_midi_in = false;
+    }
+
     if (params.wav_out_fname != NULL) {
         HANDLE_ERR(tinywav_open_write(&_harmonizer_app.wav_out, 2, 48000,
                                       TW_FLOAT32, TW_SPLIT,
@@ -111,9 +123,13 @@ void init_harmonizer_app(int argc, char **argv) {
                                       TW_FLOAT32, TW_SPLIT,
                                       params.wav_input_out_fname));
     }
+    if (params.wav_in_fname != NULL) {
+        HANDLE_ERR(tinywav_open_read(&_harmonizer_app.wav_in,
+                                     params.wav_in_fname, TW_SPLIT));
+    }
 
     // TODO midi
-    if (params.use_jack_in) {
+    if (_harmonizer_app.use_jack) {
 
         HANDLE_ERR(init_jack(&_harmonizer_app.jack, "client", NULL));
 
@@ -134,7 +150,7 @@ void init_harmonizer_app(int argc, char **argv) {
 }
 
 void run_harmonizer_app() {
-    if (_harmonizer_app.params.use_jack_in) {
+    if (_harmonizer_app.use_jack) {
         HANDLE_ERR(init_io(&_harmonizer_app.jack));
         HANDLE_ERR(start_jack(&_harmonizer_app.jack));
 
@@ -158,6 +174,9 @@ void run_harmonizer_app() {
             sleep(1);
 #endif
         }
+    } else {
+        // offline mode
+        // TODO process input file until the end, write result to output
     }
 }
 
@@ -171,15 +190,34 @@ int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
     sample_t *in[HARMONIZER_CHANNELS], *out[HARMONIZER_CHANNELS];
 
     for (i = 0; i < HARMONIZER_CHANNELS; i++) {
-        int input_chan = i;
-        if (!_harmonizer_app.jack.stereo_input) {
-            input_chan = 0;
+        if (_harmonizer_app.params.use_jack_in) {
+            int input_chan = i;
+            if (!_harmonizer_app.jack.stereo_input) {
+                input_chan = 0;
+            }
+
+            in[i] = jack_port_get_buffer(
+                _harmonizer_app.jack.input_ports[input_chan], nframes);
+        } else {
+            if (_harmonizer_app.in[i] == NULL) {
+                _harmonizer_app.in[i] = calloc(nframes, sizeof(sample_t));
+            }
+            in[i] = _harmonizer_app.in[i];
         }
 
-        in[i] = jack_port_get_buffer(
-            _harmonizer_app.jack.input_ports[input_chan], nframes);
-        out[i] =
-            jack_port_get_buffer(_harmonizer_app.jack.output_ports[i], nframes);
+        if (_harmonizer_app.params.use_jack_out) {
+            out[i] = jack_port_get_buffer(_harmonizer_app.jack.output_ports[i],
+                                          nframes);
+        } else {
+            if (_harmonizer_app.out[i] == NULL) {
+                _harmonizer_app.out[i] = calloc(nframes, sizeof(sample_t));
+            }
+            out[i] = _harmonizer_app.out[i];
+        }
+    }
+
+    if (_harmonizer_app.params.wav_in_fname) {
+        tinywav_read_f(&_harmonizer_app.wav_in, in, nframes);
     }
 
     if (_harmonizer_app.params.wav_input_out_fname) {

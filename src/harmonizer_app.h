@@ -29,6 +29,10 @@ typedef struct {
     bool use_jack;
     jack_backend_t jack;
 
+    // These buffers are used if jack is disabled
+    sample_t *in[HARMONIZER_CHANNELS];
+    sample_t *out[HARMONIZER_CHANNELS];
+
     // files to write to / read from
     TinyWav wav_in;
     TinyWav wav_out;

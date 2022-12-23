@@ -18,17 +18,21 @@ typedef struct {
     // in case of dynamic input, they can be saved in a file for later debugging
     char *midi_input_out_fname;
     char *wav_input_out_fname;
+    // debug
+    char *pitch_log_fname;
 } harmonizer_app_params_t;
 
 typedef struct {
     harmonizer_app_params_t params;
     harmonizer_dsp_t dsp;
 
+    bool use_jack;
     jack_backend_t jack;
 
     // files to write to / read from
+    TinyWav wav_in;
     TinyWav wav_out;
-    /** save the input file */
+    /** save the input audio to a file */
     TinyWav wav_input_out;
 } harmonizer_app_t;
 

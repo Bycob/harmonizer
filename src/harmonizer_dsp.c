@@ -232,7 +232,7 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         in = in_stereo[i];
         out = out_stereo[i];
 
-        memset(out, 0.f, nframes * sizeof(sample_t));
+        memset(out, 0, nframes * sizeof(sample_t));
         // fft(in, dsp->fft[i], nframes);
         // float period = fundamental_period(dsp->fft[i],
         // nframes);

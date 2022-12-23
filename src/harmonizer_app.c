@@ -1,5 +1,6 @@
 #include "harmonizer_app.h"
 
+#include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
 
@@ -16,12 +17,86 @@ static void signal_handler(int sig) {
     exit(0);
 }
 
+static void print_help() {
+    printf("Harmonizer options:\n"
+           "\n I/O:"
+           "\n\t--audio_input_file Set audio file (wav) as input. If not "
+           "specified, the input is the mic."
+           "\n\t--midi_input_file Set midi file as input. If not specified, "
+           "the input is the midi keyboard."
+           "\n\t--save_audio_output Specify a file to save the audio output of "
+           "the harmonizer."
+           "\n\t--save_audio_input Specify a file to save the audio input, "
+           "typically from the mic"
+           "\n\t--save_midi_input Specify a file to save the midi input, "
+           "typically from the midi keyboard."
+           "\n\t--no_play_audio Do not play output audio. Output audio can "
+           "still be saved in a file"
+           "\n"
+           "\n Debug:"
+           "\n\t--pitch_log_file Log the detected pitch to a file"
+           "\n"
+           "\n Other:"
+           "\n\t--help print this message and exit"
+           "\n");
+}
+
 void init_harmonizer_app(int argc, char **argv) {
     harmonizer_app_params_t params;
-    // TODO parse arguments
+    memset(&params, 0, sizeof(harmonizer_app_params_t));
+
+    static struct option long_options[] = {
+        {"audio_input_file", required_argument, 0, 'a'},
+        {"midi_input_file", required_argument, 0, 'm'},
+        {"save_audio_output", required_argument, 0, 'o'},
+        {"save_audio_input", required_argument, 0, 's'},
+        {"save_midi_input", required_argument, 0, 'i'},
+        {"no_play_audio", no_argument, 0, 'p'},
+        {"pitch_log_file", required_argument, 0, 'l'},
+        {"help", no_argument, 0, 'h'},
+        {0, 0, 0, 0}};
+
     params.use_jack_in = true;
-    params.wav_input_out_fname = "harmonizer_input.wav";
-    params.wav_out_fname = "harmonizer_output.wav";
+    params.use_jack_out = true;
+    params.use_midi_in = true;
+
+    int arg;
+    int long_index = 0;
+    while ((arg = getopt_long(argc, argv, "a:m:o:s:i:p:h:", long_options,
+                              &long_index)) != -1) {
+        switch (arg) {
+        case 'a':
+            params.use_jack_in = false;
+            params.wav_in_fname = strdup(optarg);
+            break;
+        case 'm':
+            params.use_midi_in = false;
+            params.midi_in_fname = strdup(optarg);
+            break;
+        case 'o':
+            params.wav_out_fname = strdup(optarg);
+            break;
+        case 's':
+            params.wav_input_out_fname = strdup(optarg);
+            break;
+        case 'i':
+            params.midi_input_out_fname = strdup(optarg);
+            break;
+        case 'p':
+            params.use_jack_out = false;
+            break;
+        case 'l':
+            params.pitch_log_fname = strdup(optarg);
+            break;
+        case 'h':
+            print_help();
+            exit(0);
+        default:
+            fprintf(stderr, "Unknwon argument!\n\n");
+            print_help();
+            exit(0);
+        }
+    }
 
     _harmonizer_app.params = params;
 
@@ -36,6 +111,8 @@ void init_harmonizer_app(int argc, char **argv) {
                                       TW_FLOAT32, TW_SPLIT,
                                       params.wav_input_out_fname));
     }
+
+    // TODO midi
     if (params.use_jack_in) {
 
         HANDLE_ERR(init_jack(&_harmonizer_app.jack, "client", NULL));
@@ -49,8 +126,11 @@ void init_harmonizer_app(int argc, char **argv) {
     }
 
     harmonizer_dsp_init(&_harmonizer_app.dsp);
-    // TODO remove & use parameters
-    harmonizer_dsp_log_pitch(&_harmonizer_app.dsp, "pitch_log.txt");
+
+    // Debug
+    if (params.pitch_log_fname != NULL) {
+        harmonizer_dsp_log_pitch(&_harmonizer_app.dsp, params.pitch_log_fname);
+    }
 }
 
 void run_harmonizer_app() {

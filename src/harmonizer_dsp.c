@@ -13,6 +13,40 @@ void print_array(float *array, int nframes) {
     fprintf(stderr, "]\n");
 }
 
+// Rolling buffer
+
+void rbuf_init(rolling_buffer_t *rbuf, int size, int step) {
+    rbuf->buf = (sample_t *)calloc(size, sizeof(sample_t));
+    rbuf->size = size;
+    rbuf->step = step;
+}
+
+// helper function to move the cursor of the rbuf
+int inc_offset(rolling_buffer_t *rbuf, int inc) {
+    int off = (rbuf->curr_offset + rbuf->step * inc) % rbuf->size;
+    if (off < 0) {
+        off += rbuf->size;
+    }
+    return off;
+}
+
+sample_t *rbuf_get(rolling_buffer_t *rbuf, int prev) {
+    int off = inc_offset(rbuf, -prev);
+    fprintf(stderr, "================= Offset is %d\n", off);
+    return rbuf->buf + off;
+}
+
+sample_t *rbuf_next(rolling_buffer_t *rbuf) {
+    rbuf->curr_offset = inc_offset(rbuf, 1);
+    return rbuf->buf + rbuf->curr_offset;
+}
+
+void rbuf_destroy(rolling_buffer_t *rbuf) { free(rbuf->buf); }
+
+// Harmonizer
+
+#define HARMONIZER_SAMPLE_BUF_COUNT 8
+
 #define HANN_SIZE 1024
 float *hann_window;
 
@@ -104,14 +138,19 @@ void wave(sample_t *in, sample_t *out, float in_nframes, int out_a, int out_b,
  * \param period the original (precomputed) period of the original signal for
  * phase alignment, in samples.
  *
- * \param prev_buf the previous buffer
+ * \param starting_buf the buffer containing data of the wave that was starting
+ * at the end of the previous filling up
+ *
+ * \param ending_buf the buffer containing data of the wave that was ending
+ * at the end of the previous filling up
  *
  * \param prev_offset index of the start of the previous "wave" in the previous
  * sample. Will be updated with the new offset.
  */
 void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
-                  float period, sample_t *prev_buf, float *prev_offset,
-                  float *prev_ratio, float *prev_period) {
+                  float period, sample_t **starting_buf, sample_t **ending_buf,
+                  float *prev_offset, float *prev_ratio,
+                  sample_t *prev_period) {
     float prev_whole_nframes;
     modff(nframes / (*prev_period) / 2, &prev_whole_nframes);
     prev_whole_nframes *= *prev_period * 2;
@@ -134,9 +173,9 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
                 "prev_offset %f tstart %f tend %f\n",
                 *prev_ratio, out_nframes, *prev_period, out_fillup,
                 *prev_offset, tstart, tend);
-        wave(prev_buf, out, prev_whole_nframes, 0, nframes, 0.5 + tstart,
+        wave(*ending_buf, out, prev_whole_nframes, 0, nframes, 0.5 + tstart,
              0.5 + tend);
-        wave(prev_buf, out, prev_whole_nframes, 0, nframes, tstart, tend);
+        wave(*starting_buf, out, prev_whole_nframes, 0, nframes, tstart, tend);
 
         *prev_offset -= nframes;
         return;
@@ -146,9 +185,9 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
                 "prev_offset %f\n",
                 prev_whole_nframes, out_nframes, out_fillup, tstart,
                 *prev_ratio, *prev_offset);
-        wave(prev_buf, out, prev_whole_nframes, 0, (int)out_fillup,
+        wave(*ending_buf, out, prev_whole_nframes, 0, (int)out_fillup,
              0.5 + tstart, 1);
-        wave(prev_buf, out, prev_whole_nframes, 0, (int)out_fillup, tstart,
+        wave(*starting_buf, out, prev_whole_nframes, 0, (int)out_fillup, tstart,
              0.5);
         fprintf(stderr, "FILL UP!\n");
     }
@@ -162,7 +201,7 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
     float out_start = out_fillup;
     *prev_offset = out_start;
     float out_end = out_fillup + out_nframes;
-    float *from_buf = prev_buf;
+    sample_t *from_buf = *starting_buf;
     int from_whole_nframes = prev_whole_nframes;
 
     while (out_start < nframes) {
@@ -180,6 +219,9 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
              tend);
 
         *prev_offset = out_start;
+        *ending_buf = from_buf;
+        *starting_buf = in;
+
         out_start = out_end;
         out_end = out_start + out_nframes;
         from_buf = in;
@@ -196,7 +238,8 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
     int i;
 
     for (i = 0; i < HARMONIZER_CHANNELS; ++i) {
-        dsp->prev_buf[i] = (sample_t *)calloc(buf_size, sizeof(sample_t));
+        rbuf_init(&dsp->sample_buf[i], buf_size * HARMONIZER_SAMPLE_BUF_COUNT,
+                  buf_size);
         dsp->prev_period[i] = 1.0;
         dsp->fft[i] =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * buf_size);
@@ -211,8 +254,14 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
             voice->prev_ratio[i] = 1;
             voice->prev_offset[i] = 1024;
             voice->prev_period[i] = 1;
+
+            voice->starting_buf[i] = dsp->sample_buf[i].buf;
+            voice->ending_buf[i] = dsp->sample_buf[i].buf;
         }
     }
+
+    // Setup parameters
+    dsp->pitch_alpha = 0.5;
 
     // Setup voices
     // TODO use midi input
@@ -241,7 +290,12 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         in = in_stereo[i];
         out = out_stereo[i];
 
+        memcpy(rbuf_next(&dsp->sample_buf[i]), in, nframes * sizeof(sample_t));
         memset(out, 0, nframes * sizeof(sample_t));
+
+        // if (i == 1)
+        //    break;
+
         // fft(in, dsp->fft[i], nframes);
         // float period = fundamental_period(dsp->fft[i],
         // nframes);
@@ -255,11 +309,10 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
 
         if (period < 1 || period > 511)
             period = dsp->prev_period[i];
-        // frequency stabilisation
-        if (fabs(period - 2 * dsp->prev_period[i]) <
-            dsp->prev_period[i] * 0.01) {
-            period = dsp->prev_period[i];
-        }
+        else
+            period = dsp->prev_period[i] * dsp->pitch_alpha +
+                     period * (1 - dsp->pitch_alpha);
+
         fprintf(stderr, "retained period = %f\n", period);
         dsp->prev_period[i] = period;
 
@@ -277,7 +330,8 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
                 ratio = 1;
             }
 
-            shift_signal(in, out, nframes, ratio, period, dsp->prev_buf[i],
+            shift_signal(rbuf_get(&dsp->sample_buf[i], 0), out, nframes, ratio,
+                         period, &voice->starting_buf[i], &voice->ending_buf[i],
                          &voice->prev_offset[i], &voice->prev_ratio[i],
                          &voice->prev_period[i]);
         }
@@ -285,12 +339,9 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         // add original signal * 2
         int u;
         for (u = 0; u < nframes; ++u) {
-            out[u] += in[u] * 0.;
+            out[u] += in[u] * 1.;
             out[u] /= 2;
         }
-
-        memcpy(dsp->prev_buf[i], in,
-               nframes * sizeof(jack_default_audio_sample_t));
     }
     return 0;
 }

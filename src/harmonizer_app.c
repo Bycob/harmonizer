@@ -220,7 +220,7 @@ int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
     if (_harmonizer_app.params.wav_in_fname) {
         int read = tinywav_read_f(&_harmonizer_app.wav_in, in, nframes);
         if (read == 0) {
-            fprintf(stderr, "End of file");
+            fprintf(stderr, "End of file\n");
             _harmonizer_app.finished = true;
         }
     }

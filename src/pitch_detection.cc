@@ -17,7 +17,7 @@ float detect_period(float *signal, int nframes) {
 pitch_detection_data alloc_pitch_detection_data() {
     pitch_detection_data wrapper;
     wrapper.period_detector = new period_detector(
-        40.0_Hz /* C2 */, 2093.0_Hz /* C7 */, 48000u, -30.0_dB);
+        20.0_Hz /* C2 */, 2093.0_Hz /* C7 */, 48000u, -40.0_dB);
     return wrapper;
 }
 

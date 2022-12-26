@@ -26,6 +26,7 @@ typedef struct {
 
     float prev_ratio[HARMONIZER_CHANNELS];
     float prev_offset[HARMONIZER_CHANNELS];
+    sample_t prev_period[HARMONIZER_CHANNELS];
 } harmonizer_voice_t;
 
 /** Harmonizer "Digital Signal Processor" */

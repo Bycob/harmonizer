@@ -82,16 +82,15 @@ void wave(sample_t *in, sample_t *out, float in_nframes, int out_a, int out_b,
 
     for (i = 0; i < out_count; ++i) {
         const float t = (float)i / out_count * (tb - ta) + ta;
-        float h = t < 0.5 ? hann(t) : 1 - hann(t);
-        out[out_a + i] += lerp(in, t, in_nframes) * hann(t);
-        /*
-        if (i == 100) {
-            fprintf(stderr,
-                    "%d: %f, frames = %f, hann = %f, in = %f, lerp = %f\n", i,
-                    t, in_nframes, hann(t), in[(int)(t * in_nframes)],
-                    lerp(in, t, in_nframes));
+        float h = t < 0.5 ? hann(t) : hann(1 - t);
+        out[out_a + i] += lerp(in, t, in_nframes) * h;
+        if (i == 0) {
+            fprintf(stderr, "Start with %f at t = %f\n",
+                    lerp(in, t, in_nframes) * h, t);
+        } else if (i == out_count - 1) {
+            fprintf(stderr, "Finish with %f at t = %f\n",
+                    lerp(in, t, in_nframes) * h, t);
         }
-        */
     }
 }
 
@@ -112,45 +111,52 @@ void wave(sample_t *in, sample_t *out, float in_nframes, int out_a, int out_b,
  */
 void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
                   float period, sample_t *prev_buf, float *prev_offset,
-                  float *prev_ratio, float prev_period) {
+                  float *prev_ratio, float *prev_period) {
     float prev_whole_nframes;
-    // float frame_shift = modf(nframes / (*prev_period), &whole_nframes) *
-    // (*prev_period);
-    modff(nframes / prev_period / 2, &prev_whole_nframes);
-    prev_whole_nframes *= prev_period * 2;
-    // float tshift = frame_shift / nframes * 2;
-    // float neg_tshift = tshift - (*prev_period) / nframes * 2;
+    modff(nframes / (*prev_period) / 2, &prev_whole_nframes);
+    prev_whole_nframes *= *prev_period * 2;
 
     // first wave with old frequency
     float out_nframes = prev_whole_nframes * (*prev_ratio) / 2;
     // number of frames filled from prev_buffer
     float out_filled = nframes - *prev_offset;
     // number of frames to fill up from prev_buffer
-    // TODO if ratio > 2, out_fillup exceeds number of frames available
     float out_fillup = out_nframes - out_filled;
     // starting t in input buffer
     float tstart = out_filled / out_nframes / 2;
 
-    if (out_fillup >= 1) {
+    if (out_fillup >= nframes) {
+        // if ratio > 2, fillup exceeds the number of frames and can overlap
+        // on multiple buffers.
+        float tend = (1 - (out_fillup - nframes) / out_nframes) / 2;
+        fprintf(stderr,
+                "prev_ratio %f out_nframes %f prev_period %f out_fillup %f "
+                "prev_offset %f tstart %f tend %f\n",
+                *prev_ratio, out_nframes, *prev_period, out_fillup,
+                *prev_offset, tstart, tend);
+        wave(prev_buf, out, prev_whole_nframes, 0, nframes, 0.5 + tstart,
+             0.5 + tend);
+        wave(prev_buf, out, prev_whole_nframes, 0, nframes, tstart, tend);
+
+        *prev_offset -= nframes;
+        return;
+    } else if (out_fillup >= 1) {
+        fprintf(stderr,
+                "whole %f out_nframes %f out_fillup %f tstart %f prev_ratio %f "
+                "prev_offset %f\n",
+                prev_whole_nframes, out_nframes, out_fillup, tstart,
+                *prev_ratio, *prev_offset);
         wave(prev_buf, out, prev_whole_nframes, 0, (int)out_fillup,
              0.5 + tstart, 1);
         wave(prev_buf, out, prev_whole_nframes, 0, (int)out_fillup, tstart,
              0.5);
         fprintf(stderr, "FILL UP!\n");
     }
-    fprintf(stderr,
-            "whole %f out_nframes %f out_fillup %f tstart %f prev_ratio %f "
-            "prev_offset %f\n",
-            prev_whole_nframes, out_nframes, out_fillup, tstart, *prev_ratio,
-            *prev_offset);
 
     // repeat new frequency
     float whole_nframes;
-    // frame_shift = modf(nframes / period, &integral) * period;
     modff(nframes / period / 2, &whole_nframes);
     whole_nframes *= period * 2;
-    // tshift = frame_shift / nframes * 2;
-    // neg_tshift = tshift - period / nframes * 2;
     out_nframes = whole_nframes * ratio / 2;
 
     float out_start = out_fillup;
@@ -163,14 +169,15 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
         float real_out_end = fminf(out_end, nframes);
         float tend = (real_out_end - out_start) / (out_end - out_start) / 2;
 
+        fprintf(stderr,
+                "whole %f out_nframes %f ratio %f out_start %f "
+                "real_out_end %f tend %f/%f\n",
+                whole_nframes, out_nframes, ratio, out_start, real_out_end,
+                tend, 0.5 + tend);
         wave(from_buf, out, from_whole_nframes, (int)out_start,
              (int)real_out_end, 0.5, 0.5 + tend);
         wave(in, out, whole_nframes, (int)out_start, (int)real_out_end, 0,
              tend);
-        fprintf(stderr,
-                "whole %f out_nframes %f ratio %f out_start %f "
-                "real_out_end %f\n",
-                whole_nframes, out_nframes, ratio, out_start, real_out_end);
 
         *prev_offset = out_start;
         out_start = out_end;
@@ -180,6 +187,7 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
     }
 
     *prev_ratio = ratio;
+    *prev_period = period;
 }
 
 void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
@@ -189,7 +197,7 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
 
     for (i = 0; i < HARMONIZER_CHANNELS; ++i) {
         dsp->prev_buf[i] = (sample_t *)calloc(buf_size, sizeof(sample_t));
-        dsp->prev_period[i] = 1;
+        dsp->prev_period[i] = 1.0;
         dsp->fft[i] =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * buf_size);
 
@@ -202,16 +210,17 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
 
             voice->prev_ratio[i] = 1;
             voice->prev_offset[i] = 1024;
+            voice->prev_period[i] = 1;
         }
     }
 
     // Setup voices
     // TODO use midi input
-    dsp->voices[0].active = true;
-    dsp->voices[0].target_period = 184;
+    dsp->voices[0].active = false;
+    dsp->voices[0].target_period = 184 / 2;
     dsp->voices[1].active = true;
     dsp->voices[1].target_period = 184 / 1.25;
-    dsp->voices[2].active = true;
+    dsp->voices[2].active = false;
     dsp->voices[2].target_period = 184 / 1.5;
 
     // Debug pitch detection
@@ -252,6 +261,7 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
             period = dsp->prev_period[i];
         }
         fprintf(stderr, "retained period = %f\n", period);
+        dsp->prev_period[i] = period;
 
         int v_id;
         for (v_id = 0; v_id < MAX_HARMONIZER_VOICES; ++v_id) {
@@ -261,18 +271,21 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
                 continue;
             }
             float ratio = voice->target_period / period;
-            if (ratio > 2)
-                ratio = 2;
+            // shield against very high ratio. should never be higher than
+            // 3 octaves I guess (ratio = 8)
+            if (ratio > 8) {
+                ratio = 1;
+            }
+
             shift_signal(in, out, nframes, ratio, period, dsp->prev_buf[i],
                          &voice->prev_offset[i], &voice->prev_ratio[i],
-                         dsp->prev_period[i]);
+                         &voice->prev_period[i]);
         }
-        dsp->prev_period[i] = period;
 
         // add original signal * 2
         int u;
         for (u = 0; u < nframes; ++u) {
-            out[u] += in[u] * 2;
+            out[u] += in[u] * 0.;
             out[u] /= 2;
         }
 

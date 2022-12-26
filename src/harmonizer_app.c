@@ -100,6 +100,7 @@ void init_harmonizer_app(int argc, char **argv) {
 
     _harmonizer_app.params = params;
 
+    _harmonizer_app.finished = false;
     _harmonizer_app.use_jack = params.use_jack_in || params.use_jack_out;
     int i;
     for (i = 0; i < HARMONIZER_CHANNELS; ++i) {
@@ -167,11 +168,11 @@ void run_harmonizer_app() {
 #endif
 
         /* keep running until the transport stops */
-        while (1) {
+        while (!_harmonizer_app.finished) {
 #ifdef WIN32
-            Sleep(1000);
+            Sleep(50);
 #else
-            sleep(1);
+            usleep(50000);
 #endif
         }
     } else {
@@ -217,7 +218,11 @@ int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
     }
 
     if (_harmonizer_app.params.wav_in_fname) {
-        tinywav_read_f(&_harmonizer_app.wav_in, in, nframes);
+        int read = tinywav_read_f(&_harmonizer_app.wav_in, in, nframes);
+        if (read == 0) {
+            fprintf(stderr, "End of file");
+            _harmonizer_app.finished = true;
+        }
     }
 
     if (_harmonizer_app.params.wav_input_out_fname) {

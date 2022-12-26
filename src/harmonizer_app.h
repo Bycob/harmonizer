@@ -29,6 +29,9 @@ typedef struct {
     bool use_jack;
     jack_backend_t jack;
 
+    /// flag used to signal main thread that the app has finished reading the
+    /// input file
+    bool finished;
     // These buffers are used if jack is disabled
     sample_t *in[HARMONIZER_CHANNELS];
     sample_t *out[HARMONIZER_CHANNELS];

@@ -32,7 +32,6 @@ int inc_offset(rolling_buffer_t *rbuf, int inc) {
 
 sample_t *rbuf_get(rolling_buffer_t *rbuf, int prev) {
     int off = inc_offset(rbuf, -prev);
-    fprintf(stderr, "================= Offset is %d\n", off);
     return rbuf->buf + off;
 }
 
@@ -105,19 +104,22 @@ sample_t lerp(sample_t *values, float t, float n) {
 
 /** Generate one resampled window of the input signal, between out_a & out_b,
  * with ta & tb as ratio of input to be taken (between 0 and 1) */
-void wave(sample_t *in, sample_t *out, float in_nframes, int out_a, int out_b,
-          float ta, float tb) {
+void wave(sample_t *in, sample_t *out, float in_nframes, float out_a,
+          float out_b, float ta, float tb) {
     int i;
-    const int out_count = out_b - out_a;
+    const float out_span = out_b - out_a;
+    const float out_off = out_a - (int)out_a;
+    const int out_count = (int)out_b - (int)out_a;
+    const int out_start = (int)out_a;
     /*
     fprintf(stderr, "in_nframes %f out_a %d out_b %d ta %f tb %f\n", in_nframes,
             out_a, out_b, ta, tb);
             */
 
     for (i = 0; i < out_count; ++i) {
-        const float t = (float)i / out_count * (tb - ta) + ta;
-        float h = t < 0.5 ? hann(t) : hann(1 - t);
-        out[out_a + i] += lerp(in, t, in_nframes) * h;
+        const float t = (float)(i - out_off) / out_span * (tb - ta) + ta;
+        const float h = t < 0.5 ? hann(t) : hann(1 - t);
+        out[out_start + i] += lerp(in, t, in_nframes) * h;
         if (i == 0) {
             fprintf(stderr, "Start with %f at t = %f\n",
                     lerp(in, t, in_nframes) * h, t);
@@ -185,9 +187,9 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
                 "prev_offset %f\n",
                 prev_whole_nframes, out_nframes, out_fillup, tstart,
                 *prev_ratio, *prev_offset);
-        wave(*ending_buf, out, prev_whole_nframes, 0, (int)out_fillup,
-             0.5 + tstart, 1);
-        wave(*starting_buf, out, prev_whole_nframes, 0, (int)out_fillup, tstart,
+        wave(*ending_buf, out, prev_whole_nframes, 0, out_fillup, 0.5 + tstart,
+             1);
+        wave(*starting_buf, out, prev_whole_nframes, 0, out_fillup, tstart,
              0.5);
         fprintf(stderr, "FILL UP!\n");
     }
@@ -213,10 +215,9 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
                 "real_out_end %f tend %f/%f\n",
                 whole_nframes, out_nframes, ratio, out_start, real_out_end,
                 tend, 0.5 + tend);
-        wave(from_buf, out, from_whole_nframes, (int)out_start,
-             (int)real_out_end, 0.5, 0.5 + tend);
-        wave(in, out, whole_nframes, (int)out_start, (int)real_out_end, 0,
-             tend);
+        wave(from_buf, out, from_whole_nframes, out_start, real_out_end, 0.5,
+             0.5 + tend);
+        wave(in, out, whole_nframes, out_start, real_out_end, 0, tend);
 
         *prev_offset = out_start;
         *ending_buf = from_buf;
@@ -265,11 +266,11 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
 
     // Setup voices
     // TODO use midi input
-    dsp->voices[0].active = false;
-    dsp->voices[0].target_period = 184 / 2;
+    dsp->voices[0].active = true;
+    dsp->voices[0].target_period = 184;
     dsp->voices[1].active = true;
     dsp->voices[1].target_period = 184 / 1.25;
-    dsp->voices[2].active = false;
+    dsp->voices[2].active = true;
     dsp->voices[2].target_period = 184 / 1.5;
 
     // Debug pitch detection

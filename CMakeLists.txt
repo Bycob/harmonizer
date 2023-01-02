@@ -22,15 +22,9 @@ add_executable(harmonizer
 
 message(STATUS ${THIRD_PARTY_INCLUDES})
 include_directories(${THIRD_PARTY_INCLUDES})
-
-set(Q_INCLUDE "${HARMONIZER_Q_PATH}/q_lib/include/")
-message(STATUS "Q headers location is ${Q_INCLUDE}")
-include_directories(
-    "${Q_INCLUDE}"
-    "${HARMONIZER_Q_PATH}/infra/include/")
+add_dependencies(harmonizer ${THIRD_PARTY_DEPENDENCIES})
 
 target_link_libraries(harmonizer
-    fftw3f
     m
     jack
     ${THIRD_PARTY_LIBRARIES})

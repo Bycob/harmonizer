@@ -5,7 +5,7 @@ Jacob Collier-like harmonizer, written in C and open source free for use :sungla
 ## Install Jack
 
 ```bash
-sudo apt install jackd2
+sudo apt install jackd2 libjack-jackd2-dev
 ```
 
 Add realtime permissions to jack:

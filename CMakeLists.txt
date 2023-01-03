@@ -4,8 +4,6 @@ project(Harmonizer)
 
 # User set variables
 
-set(HARMONIZER_Q_PATH CACHE STRING "")
-
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 

@@ -2,6 +2,31 @@
 
 Jacob Collier-like harmonizer, written in C and open source free for use :sunglasses:
 
+## Startup
+
+- Install jack (see below)
+- Clone repository
+```bash
+git clone --recursive https://github.com/Bycob/harmonizer.git
+```
+- Build
+```bash
+mkdir build
+cd build
+cmake ..
+make
+```
+
+## Test the software
+
+```bash
+# Run with audio interface
+./harmonizer
+
+# Run from audio sample
+./harmonizer --audio_input_file samples/test_sample_01.wav
+```
+
 ## Install Jack
 
 ```bash

@@ -20,7 +20,6 @@ add_executable(harmonizer
     src/main.c
 )
 
-message(STATUS ${THIRD_PARTY_INCLUDES})
 include_directories(${THIRD_PARTY_INCLUDES})
 add_dependencies(harmonizer ${THIRD_PARTY_DEPENDENCIES})
 

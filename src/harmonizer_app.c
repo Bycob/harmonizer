@@ -24,6 +24,7 @@ static void print_help() {
            "specified, the input is the mic."
            "\n\t--midi_input_file Set midi file as input. If not specified, "
            "the input is the midi keyboard."
+           "\n\t--loop Loop the audio/midi input when it's finished"
            "\n\t--save_audio_output Specify a file to save the audio output of "
            "the harmonizer."
            "\n\t--save_audio_input Specify a file to save the audio input, "
@@ -48,11 +49,12 @@ void init_harmonizer_app(int argc, char **argv) {
     static struct option long_options[] = {
         {"audio_input_file", required_argument, 0, 'a'},
         {"midi_input_file", required_argument, 0, 'm'},
+        {"loop", no_argument, 0, 'l'},
         {"save_audio_output", required_argument, 0, 'o'},
         {"save_audio_input", required_argument, 0, 's'},
         {"save_midi_input", required_argument, 0, 'i'},
         {"no_play_audio", no_argument, 0, 'p'},
-        {"pitch_log_file", required_argument, 0, 'l'},
+        {"pitch_log_file", required_argument, 0, 'd'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}};
 
@@ -73,6 +75,9 @@ void init_harmonizer_app(int argc, char **argv) {
             params.use_midi_in = false;
             params.midi_in_fname = strdup(optarg);
             break;
+        case 'l':
+            params.loop = true;
+            break;
         case 'o':
             params.wav_out_fname = strdup(optarg);
             break;
@@ -85,7 +90,7 @@ void init_harmonizer_app(int argc, char **argv) {
         case 'p':
             params.use_jack_out = false;
             break;
-        case 'l':
+        case 'd':
             params.pitch_log_fname = strdup(optarg);
             break;
         case 'h':
@@ -127,9 +132,10 @@ void init_harmonizer_app(int argc, char **argv) {
     if (params.wav_in_fname != NULL) {
         HANDLE_ERR(tinywav_open_read(&_harmonizer_app.wav_in,
                                      params.wav_in_fname, TW_SPLIT));
+        _harmonizer_app.wav_in_start = ftell(_harmonizer_app.wav_in.f);
     }
 
-    // TODO midi
+    // Jack I/O
     if (_harmonizer_app.use_jack) {
 
         HANDLE_ERR(init_jack(&_harmonizer_app.jack, "client", NULL));
@@ -220,8 +226,15 @@ int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
     if (_harmonizer_app.params.wav_in_fname) {
         int read = tinywav_read_f(&_harmonizer_app.wav_in, in, nframes);
         if (read == 0) {
-            fprintf(stderr, "End of file\n");
-            _harmonizer_app.finished = true;
+            if (_harmonizer_app.params.loop) {
+                // rewind file
+                fseek(_harmonizer_app.wav_in.f, _harmonizer_app.wav_in_start,
+                      SEEK_SET);
+                read = tinywav_read_f(&_harmonizer_app.wav_in, in, nframes);
+            } else {
+                fprintf(stderr, "End of file\n");
+                _harmonizer_app.finished = true;
+            }
         }
     }
 

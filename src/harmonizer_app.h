@@ -14,6 +14,8 @@ typedef struct {
     bool use_midi_in;
     char *wav_in_fname;
     char *midi_in_fname;
+    /// Whether the input audio / midi should be looped
+    bool loop;
     char *wav_out_fname;
     // in case of dynamic input, they can be saved in a file for later debugging
     char *midi_input_out_fname;
@@ -38,6 +40,7 @@ typedef struct {
 
     // files to write to / read from
     TinyWav wav_in;
+    long int wav_in_start;
     TinyWav wav_out;
     /** save the input audio to a file */
     TinyWav wav_input_out;

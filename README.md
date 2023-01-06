@@ -121,3 +121,9 @@ x Parse arguments
 - Offline mode where it takes a wav file and a midi file and outputs the result. Either of both file can be replaced by live input.
 - Make config file to detect usual device by name (ex: H2n) and automatically start jack using these devices
 - Automated tests
+
+Before open source:
+- License
+- Readme
+- select midi interface by name
+(- allow to record and play midi files)

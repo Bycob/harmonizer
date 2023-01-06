@@ -66,6 +66,13 @@ void precompute_hann() {
     }
 }
 
+float midi_pitch_to_period(int midi_pitch) {
+    const double exp = 1.05946309436; // 2^(1/12)
+    const double base = 4186.01 / 512;
+    double f = base * pow(exp, midi_pitch); // TODO fast exp
+    return (float)(48000 / f);
+}
+
 void fft(float *in, fftwf_complex *out, int nframes) {
     fftwf_plan p = fftwf_plan_dft_r2c_1d(nframes, in, out, FFTW_ESTIMATE);
     fftwf_execute(p);
@@ -120,13 +127,14 @@ void wave(sample_t *in, sample_t *out, float in_nframes, float out_a,
         const float t = (float)(i - out_off) / out_span * (tb - ta) + ta;
         const float h = t < 0.5 ? hann(t) : hann(1 - t);
         out[out_start + i] += lerp(in, t, in_nframes) * h;
+        /*
         if (i == 0) {
             fprintf(stderr, "Start with %f at t = %f\n",
                     lerp(in, t, in_nframes) * h, t);
         } else if (i == out_count - 1) {
             fprintf(stderr, "Finish with %f at t = %f\n",
                     lerp(in, t, in_nframes) * h, t);
-        }
+        }*/
     }
 }
 
@@ -170,11 +178,11 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
         // if ratio > 2, fillup exceeds the number of frames and can overlap
         // on multiple buffers.
         float tend = (1 - (out_fillup - nframes) / out_nframes) / 2;
-        fprintf(stderr,
+        /*fprintf(stderr,
                 "prev_ratio %f out_nframes %f prev_period %f out_fillup %f "
                 "prev_offset %f tstart %f tend %f\n",
                 *prev_ratio, out_nframes, *prev_period, out_fillup,
-                *prev_offset, tstart, tend);
+                *prev_offset, tstart, tend);*/
         wave(*ending_buf, out, prev_whole_nframes, 0, nframes, 0.5 + tstart,
              0.5 + tend);
         wave(*starting_buf, out, prev_whole_nframes, 0, nframes, tstart, tend);
@@ -182,16 +190,15 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
         *prev_offset -= nframes;
         return;
     } else if (out_fillup >= 1) {
-        fprintf(stderr,
+        /*fprintf(stderr,
                 "whole %f out_nframes %f out_fillup %f tstart %f prev_ratio %f "
                 "prev_offset %f\n",
                 prev_whole_nframes, out_nframes, out_fillup, tstart,
-                *prev_ratio, *prev_offset);
+                *prev_ratio, *prev_offset);*/
         wave(*ending_buf, out, prev_whole_nframes, 0, out_fillup, 0.5 + tstart,
              1);
         wave(*starting_buf, out, prev_whole_nframes, 0, out_fillup, tstart,
              0.5);
-        fprintf(stderr, "FILL UP!\n");
     }
 
     // repeat new frequency
@@ -210,11 +217,11 @@ void shift_signal(sample_t *in, sample_t *out, int nframes, float ratio,
         float real_out_end = fminf(out_end, nframes);
         float tend = (real_out_end - out_start) / (out_end - out_start) / 2;
 
-        fprintf(stderr,
+        /*fprintf(stderr,
                 "whole %f out_nframes %f ratio %f out_start %f "
                 "real_out_end %f tend %f/%f\n",
                 whole_nframes, out_nframes, ratio, out_start, real_out_end,
-                tend, 0.5 + tend);
+                tend, 0.5 + tend);*/
         wave(from_buf, out, from_whole_nframes, out_start, real_out_end, 0.5,
              0.5 + tend);
         wave(in, out, whole_nframes, out_start, real_out_end, 0, tend);
@@ -266,12 +273,13 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
 
     // Setup voices
     // TODO use midi input
+    /*
     dsp->voices[0].active = true;
     dsp->voices[0].target_period = 184;
     dsp->voices[1].active = true;
     dsp->voices[1].target_period = 184 / 1.25;
     dsp->voices[2].active = true;
-    dsp->voices[2].target_period = 184 / 1.5;
+    dsp->voices[2].target_period = 184 / 1.5;*/
 
     // Debug pitch detection
     dsp->pitch_log_file = NULL;
@@ -280,6 +288,36 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
 void harmonizer_dsp_log_pitch(harmonizer_dsp_t *dsp, char *filename) {
     dsp->pitch_log_file = fopen(filename, "w");
     // TODO manage errors
+}
+
+void harmonizer_dsp_event(harmonizer_dsp_t *dsp, harmonizer_midi_event_t *evt) {
+    int i;
+    int first_available = -1;
+
+    for (i = 0; i < MAX_HARMONIZER_VOICES; ++i) {
+        if (evt->note_on) {
+            if (dsp->voices[i].active &&
+                dsp->voices[i].midi_pitch == evt->pitch) {
+                return;
+            }
+            if (!dsp->voices[i].active) {
+                first_available = i;
+            }
+
+        } else {
+            if (dsp->voices[i].active &&
+                dsp->voices[i].midi_pitch == evt->pitch) {
+                dsp->voices[i].active = false;
+            }
+        }
+    }
+
+    if (evt->note_on && first_available != -1) {
+        i = first_available;
+        dsp->voices[i].active = true;
+        dsp->voices[i].midi_pitch = evt->pitch;
+        dsp->voices[i].target_period = midi_pitch_to_period(evt->pitch);
+    }
 }
 
 int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
@@ -303,7 +341,7 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         // pitch detection
         float period =
             detect_period_continuous(dsp->pitch_detect[i], in, nframes);
-        fprintf(stderr, "period = %f\n", period);
+        // fprintf(stderr, "period = %f\n", period);
         if (dsp->pitch_log_file != NULL) {
             fprintf(dsp->pitch_log_file, "%0.2f\n", period);
         }
@@ -314,7 +352,7 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
             period = dsp->prev_period[i] * dsp->pitch_alpha +
                      period * (1 - dsp->pitch_alpha);
 
-        fprintf(stderr, "retained period = %f\n", period);
+        // fprintf(stderr, "retained period = %f\n", period);
         dsp->prev_period[i] = period;
 
         int v_id;
@@ -340,7 +378,7 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         // add original signal * 2
         int u;
         for (u = 0; u < nframes; ++u) {
-            out[u] += in[u] * 1.;
+            out[u] += in[u] * 0.;
             out[u] /= 2;
         }
     }

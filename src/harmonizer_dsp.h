@@ -17,6 +17,10 @@
 typedef jack_default_audio_sample_t sample_t;
 typedef jack_nframes_t count_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Rolling buffer
 
 typedef struct {
@@ -39,6 +43,14 @@ sample_t *rbuf_next(rolling_buffer_t *rbuf);
 
 void rbuf_destroy(rolling_buffer_t *rbuf);
 
+// Midi
+
+typedef struct {
+    bool note_on;
+    int pitch;
+    int velocity;
+} harmonizer_midi_event_t;
+
 // Harmonizer
 
 #define MAX_HARMONIZER_VOICES 8
@@ -46,6 +58,7 @@ void rbuf_destroy(rolling_buffer_t *rbuf);
 
 typedef struct {
     bool active;
+    int midi_pitch;
     float target_period;
 
     float prev_ratio[HARMONIZER_CHANNELS];
@@ -75,6 +88,9 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp);
 
 void harmonizer_dsp_log_pitch(harmonizer_dsp_t *dsp, char *filename);
 
+/** Make harmonizer react to midi event */
+void harmonizer_dsp_event(harmonizer_dsp_t *dsp, harmonizer_midi_event_t *evt);
+
 /**
  * Main fonction for harmonizer processing. Takes a number of frames, input
  * samples * number of channels, output samples * number of channels.
@@ -83,5 +99,9 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
                            sample_t **in_stereo, sample_t **out_stereo);
 
 void harmonizer_dsp_destroy(harmonizer_dsp_t *dsp);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // HARMONIZER_DSP_H

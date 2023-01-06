@@ -4,6 +4,8 @@
 #include <signal.h>
 #include <stdio.h>
 
+#include "harmonizer_midi.h"
+
 harmonizer_app_t _harmonizer_app;
 
 #define HANDLE_ERR(Line)                                                       \
@@ -118,6 +120,7 @@ void init_harmonizer_app(int argc, char **argv) {
         _harmonizer_app.params.use_midi_in = false;
     }
 
+    // Files I/O
     if (params.wav_out_fname != NULL) {
         HANDLE_ERR(tinywav_open_write(&_harmonizer_app.wav_out, 2, 48000,
                                       TW_FLOAT32, TW_SPLIT,
@@ -148,6 +151,12 @@ void init_harmonizer_app(int argc, char **argv) {
                                   harmonizer_jack_process, 0);
     }
 
+    // Midi I/O
+    if (_harmonizer_app.params.use_midi_in) {
+        HANDLE_ERR(init_midi(NULL));
+    }
+
+    // init DSP
     harmonizer_dsp_init(&_harmonizer_app.dsp);
 
     // Debug
@@ -176,10 +185,12 @@ void run_harmonizer_app() {
         /* keep running until the transport stops */
         while (!_harmonizer_app.finished) {
 #ifdef WIN32
-            Sleep(50);
+            Sleep(10);
 #else
-            usleep(50000);
+            usleep(10000);
 #endif
+
+            poll_midi_events();
         }
     } else {
         // offline mode
@@ -193,6 +204,13 @@ void run_harmonizer_app() {
  */
 int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
     int i;
+
+    // update harmonizer with midi events
+    harmonizer_midi_event_t evt;
+    while (pop_midi_event(&evt)) {
+        harmonizer_dsp_event(&_harmonizer_app.dsp, &evt);
+    }
+
     // TODO dynamic allocation to support mono & stereo in input & output
     sample_t *in[HARMONIZER_CHANNELS], *out[HARMONIZER_CHANNELS];
 

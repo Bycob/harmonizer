@@ -35,6 +35,23 @@ list(APPEND THIRD_PARTY_INCLUDES ${FFTW3_INSTALL_DIR}/include)
 list(APPEND THIRD_PARTY_LIBRARIES "${FFTW3_INSTALL_DIR}/lib/libfftw3f.a")
 list(APPEND THIRD_PARTY_DEPENDENCIES fftw3)
 
+# RTmidi
+set(RTMIDI_INSTALL_DIR "${CMAKE_BINARY_DIR}/third_party/rtmidi/install")
+message(STATUS "Installing RTMidi in ${RTMIDI_INSTALL_DIR}")
+ExternalProject_Add(
+    rtmidi
+    PREFIX rtmidi
+    UPDATE_DISCONNECTED 1
+    URL http://www.music.mcgill.ca/~gary/rtmidi/release/rtmidi-5.0.0.tar.gz
+    CONFIGURE_COMMAND ./configure --prefix "${RTMIDI_INSTALL_DIR}"
+    BUILD_COMMAND make -j4
+    BUILD_IN_SOURCE 1
+)
+# https://github.com/thestk/rtmidi/archive/refs/tags/5.0.0.tar.gz
+list(APPEND THIRD_PARTY_DEPENDENCIES rtmidi)
+list(APPEND THIRD_PARTY_INCLUDES ${RTMIDI_INSTALL_DIR}/include)
+list(APPEND THIRD_PARTY_LIBRARIES ${RTMIDI_INSTALL_DIR}/lib/librtmidi.a)
+
 set(THIRD_PARTY_LIBRARIES ${THIRD_PARTY_LIBRARIES} PARENT_SCOPE)
 set(THIRD_PARTY_LIB_DIRS ${THIRD_PARTY_LIB_DIRS} PARENT_SCOPE)
 set(THIRD_PARTY_INCLUDES ${THIRD_PARTY_INCLUDES} PARENT_SCOPE)

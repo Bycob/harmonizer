@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 typedef struct {
-
+    char *interface_name;
 } harmonizer_midi_params_t;
 
 int init_midi(harmonizer_midi_params_t *params);

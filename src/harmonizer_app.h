@@ -6,6 +6,7 @@
 #include "tinywav.h"
 
 #include "harmonizer_dsp.h"
+#include "harmonizer_midi.h"
 #include "jack_backend.h"
 
 typedef struct {
@@ -20,6 +21,7 @@ typedef struct {
     // in case of dynamic input, they can be saved in a file for later debugging
     char *midi_input_out_fname;
     char *wav_input_out_fname;
+    harmonizer_midi_params_t midi;
     // debug
     char *pitch_log_fname;
 } harmonizer_app_params_t;

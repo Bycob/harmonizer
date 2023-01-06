@@ -4,8 +4,6 @@
 #include <signal.h>
 #include <stdio.h>
 
-#include "harmonizer_midi.h"
-
 harmonizer_app_t _harmonizer_app;
 
 #define HANDLE_ERR(Line)                                                       \
@@ -22,6 +20,7 @@ static void signal_handler(int sig) {
 static void print_help() {
     printf("Harmonizer options:\n"
            "\n I/O:"
+           "\n\t--midi_interface Name of the midi interface to use"
            "\n\t--audio_input_file Set audio file (wav) as input. If not "
            "specified, the input is the mic."
            "\n\t--midi_input_file Set midi file as input. If not specified, "
@@ -49,6 +48,7 @@ void init_harmonizer_app(int argc, char **argv) {
     memset(&params, 0, sizeof(harmonizer_app_params_t));
 
     static struct option long_options[] = {
+        {"midi_interface", required_argument, 0, 't'},
         {"audio_input_file", required_argument, 0, 'a'},
         {"midi_input_file", required_argument, 0, 'm'},
         {"loop", no_argument, 0, 'l'},
@@ -63,12 +63,16 @@ void init_harmonizer_app(int argc, char **argv) {
     params.use_jack_in = true;
     params.use_jack_out = true;
     params.use_midi_in = true;
+    params.midi.interface_name = "";
 
     int arg;
     int long_index = 0;
     while ((arg = getopt_long(argc, argv, "a:m:o:s:i:p:h:", long_options,
                               &long_index)) != -1) {
         switch (arg) {
+        case 't':
+            params.midi.interface_name = strdup(optarg);
+            break;
         case 'a':
             params.use_jack_in = false;
             params.wav_in_fname = strdup(optarg);
@@ -153,7 +157,7 @@ void init_harmonizer_app(int argc, char **argv) {
 
     // Midi I/O
     if (_harmonizer_app.params.use_midi_in) {
-        HANDLE_ERR(init_midi(NULL));
+        HANDLE_ERR(init_midi(&_harmonizer_app.params.midi));
     }
 
     // init DSP

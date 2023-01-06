@@ -18,16 +18,17 @@ class HarmonizerMidi {
         if (nPorts == 0) {
             std::cout << "No ports available!\n";
             // TODO errors
-        } else {
+        } else if (strlen(params->interface_name) > 0) {
             for (int i = 0; i < nPorts; ++i) {
                 std::string port_name = _midi_in->getPortName(i);
                 std::cout << "Midi port [" << i << "]: " << port_name
                           << std::endl;
-                if (port_name.find("Piano") != std::string::npos) {
+                if (port_name.find(params->interface_name) != std::string::npos) {
                     selectedPort = i;
                 }
             }
         }
+        std::cout << "Selected port [" << selectedPort << "]" << std::endl;
         _midi_in->openPort(selectedPort);
         // Don't ignore sysex, timing, or active sensing messages.
         _midi_in->ignoreTypes(false, false, false);

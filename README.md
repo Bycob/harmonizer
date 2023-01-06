@@ -4,7 +4,9 @@ Jacob Collier-like harmonizer, written in C and open source free for use :sungla
 
 ## Startup
 
-- Install jack (see below)
+At the moment the harmonizer can only run on Linux. This will change. It can't stay like this.
+
+- Install jack (more about [here](docs/help.md#install-jack))
 - Clone repository
 ```bash
 git clone --recursive https://github.com/Bycob/harmonizer.git
@@ -20,110 +22,16 @@ make
 ## Test the software
 
 ```bash
-# Run with audio interface
+cat /proc/asound/cards
+# Select the sound card according to the output
+scripts/start_jack.sh 1
+
+# Run with audio interface & midi inferface
 ./harmonizer
 
-# Run from audio sample
+# Run from audio sample (requires a midi interface)
 ./harmonizer --audio_input_file samples/test_sample_01.wav
 ```
 
-## Install Jack
+Soon: test the harmonizer with a midi file
 
-```bash
-sudo apt install jackd2 libjack-jackd2-dev
-```
-
-Add realtime permissions to jack:
-- go to file `/etc/security/limits.d/audio.conf`
-- check that it contains the lines:
-```
-# Provided by the jackd package.
-#
-# Changes to this file will be preserved.
-#
-# If you want to enable/disable realtime permissions, run
-#
-#    dpkg-reconfigure -p high jackd
-
-@audio   -  rtprio     95
-@audio   -  memlock    unlimited
-#@audio   -  nice      -19
-```
-
-Check that you belong to the "audio" group (Use `groups`)
-
-If you don't:
-```bash
-sudo usermod -a -G audio [username]
-```
-and then logout/login.
-
-## Start Jack
-
-Check which devices you want to use as input/output
-```bash
-aplay -l
-# or
-cat /proc/asound/cards
-```
-
-Then use script to start jack with the required devices
-```bash
-# if you want to use device 2
-scripts/start_jack.sh 2
-jack_simple_client
-```
-
-Normally you should hear a sound
-
-## Get Midi info & debug
-
-```bash
-aconnect -io
-```
-
-## Install FFTW 3
-
-```bash
-wget https://www.fftw.org/fftw-3.3.10.tar.gz
-tar xvf fftw-3.3.10.tar.gz
-cd fftw-3-3.10
-./configure --enable-float
-make
-make install
-```
-
-if needed to clear the build folder
-
-```bash
-make distclean
-```
-
-## Install Q library
-
-```bash
-git clone --recurse-submodules https://github.com/cycfi/Q.git
-```
-Then pass the path to cmake:
-```bash
-cmake . -DHARMONIZER_Q_PATH=[custom Q lib path]
-```
-
-## TODO
-
-x Record mode where it records the output into a wav file
-- Record detected frequency in a file for debugging and python testing
-- Accept frequencies > 2x
-x Record input wav
-- Use MIDI input!
-x Parse arguments
-- Volume control
-- Offline mode where it takes a wav file and a midi file and outputs the result. Either of both file can be replaced by live input.
-- Make config file to detect usual device by name (ex: H2n) and automatically start jack using these devices
-- Automated tests
-
-Before open source:
-- License
-- Readme
-- select midi interface by name
-(- allow to record and play midi files)

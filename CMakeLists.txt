@@ -17,10 +17,10 @@ add_executable(harmonizer
     src/harmonizer_dsp.c
     src/pitch_detection.cc
 
-    src/harmonizer_app.c
+    src/harmonizer_app.cc
     src/harmonizer_midi.cc
     src/jack_backend.c
-    src/main.c
+    src/main.cc
 )
 
 include_directories(${THIRD_PARTY_INCLUDES})

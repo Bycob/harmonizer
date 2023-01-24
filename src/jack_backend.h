@@ -13,6 +13,10 @@
 #endif
 #include <jack/jack.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     jack_port_t **input_ports;
     jack_port_t **output_ports;
@@ -32,5 +36,9 @@ int init_jack(jack_backend_t *jack, char *client_name, char *server_name);
 int init_io(jack_backend_t *jack);
 
 int start_jack(jack_backend_t *jack);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // JACK_BACKEND_H

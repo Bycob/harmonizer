@@ -46,6 +46,7 @@ void rbuf_destroy(rolling_buffer_t *rbuf);
 // Midi
 
 typedef struct {
+    double stamp;
     bool note_on;
     int pitch;
     int velocity;

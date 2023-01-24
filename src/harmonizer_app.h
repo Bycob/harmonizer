@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "MidiFile.h"
 #include "tinywav.h"
 
 #include "harmonizer_dsp.h"
@@ -19,8 +20,10 @@ typedef struct {
     bool loop;
     char *wav_out_fname;
     // in case of dynamic input, they can be saved in a file for later debugging
+    // or testing
     char *midi_input_out_fname;
     char *wav_input_out_fname;
+    /// midi parameters
     harmonizer_midi_params_t midi;
     // debug
     char *pitch_log_fname;
@@ -32,6 +35,7 @@ typedef struct {
 
     bool use_jack;
     jack_backend_t jack;
+    int64_t jack_time;
 
     /// flag used to signal main thread that the app has finished reading the
     /// input file
@@ -44,8 +48,12 @@ typedef struct {
     TinyWav wav_in;
     long int wav_in_start;
     TinyWav wav_out;
+    smf::MidiFile midi_in;
+    /// cursor indicating where we are in the midi file
+    int midi_in_index;
     /** save the input audio to a file */
     TinyWav wav_input_out;
+    smf::MidiFile midi_input_out;
 } harmonizer_app_t;
 
 extern harmonizer_app_t _harmonizer_app;

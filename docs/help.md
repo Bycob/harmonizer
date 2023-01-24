@@ -55,6 +55,13 @@ Normally you should hear a sound
 aconnect -io
 ```
 
+## Play midi from command line
+
+```bash
+sudo apt install wildmidi
+wildmidi [filename.mid]
+```
+
 ## Install FFTW 3
 
 ```bash

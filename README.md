@@ -27,11 +27,13 @@ cat /proc/asound/cards
 scripts/start_jack.sh 1
 
 # Run with audio interface & midi inferface
-./harmonizer
+./harmonizer --midi_interface [the name of the interface]
 
-# Run from audio sample (requires a midi interface)
-./harmonizer --audio_input_file samples/test_sample_01.wav
+# Run from audio sample with a midi file
+./harmonizer --audio_input_file samples/test_sample_01.wav --midi_input_file samples/test_sample_01.mid
+
+# If you don't support jack but still want to run the harmonizer,
+# you can try the offline mode. Output will be saved to a file
+./harmonizer --audio_input_file samples/test_sample_01.wav --midi_input_file samples/test_sample_01.mid --save_audio_output my_output.wav --no_play_audio
 ```
-
-Soon: test the harmonizer with a midi file
 

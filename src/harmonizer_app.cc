@@ -17,6 +17,42 @@ static void signal_handler(int sig) {
     exit(0);
 }
 
+#define BASE_TEMPO 120
+
+harmonizer_midi_event_t read_midi_event(smf::MidiFile &midifile, int index) {
+    harmonizer_midi_event_t ret_evt;
+    ret_evt.stamp = -1;
+
+    if (index >= midifile[0].size()) {
+        return ret_evt;
+    }
+
+    auto &midi_evt = midifile[0][index];
+
+    if (midi_evt.size() != 3) {
+        return ret_evt;
+    }
+
+    ret_evt.stamp = midi_evt.seconds;
+    ret_evt.note_on = midi_evt.isNoteOn();
+    ret_evt.pitch = midi_evt[1];
+    ret_evt.velocity = midi_evt[2];
+
+    return ret_evt;
+}
+
+void write_midi_event(smf::MidiFile &midifile,
+                      const harmonizer_midi_event_t &event) {
+    int tpq = midifile.getTPQ();
+    int tick = static_cast<int>(event.stamp * tpq / (60.0 / BASE_TEMPO));
+    if (event.note_on) {
+        // first param = track
+        midifile.addNoteOn(0, tick, 0, event.pitch, event.velocity);
+    } else {
+        midifile.addNoteOff(0, tick, 0, event.pitch, event.velocity);
+    }
+}
+
 static void print_help() {
     printf("Harmonizer options:\n"
            "\n I/O:"
@@ -112,6 +148,8 @@ void init_harmonizer_app(int argc, char **argv) {
     _harmonizer_app.params = params;
 
     _harmonizer_app.finished = false;
+    _harmonizer_app.jack_time = 0;
+    _harmonizer_app.midi_in_index = 0;
     _harmonizer_app.use_jack = params.use_jack_in || params.use_jack_out;
     int i;
     for (i = 0; i < HARMONIZER_CHANNELS; ++i) {
@@ -140,6 +178,14 @@ void init_harmonizer_app(int argc, char **argv) {
         HANDLE_ERR(tinywav_open_read(&_harmonizer_app.wav_in,
                                      params.wav_in_fname, TW_SPLIT));
         _harmonizer_app.wav_in_start = ftell(_harmonizer_app.wav_in.f);
+    }
+    if (params.midi_in_fname != NULL) {
+        _harmonizer_app.midi_in.read(params.midi_in_fname);
+        _harmonizer_app.midi_in.doTimeAnalysis();
+    }
+    if (params.midi_input_out_fname != NULL) {
+        // track, , channel, instr
+        _harmonizer_app.midi_input_out.addTimbre(0, 0, 0, 0);
     }
 
     // Jack I/O
@@ -194,11 +240,17 @@ void run_harmonizer_app() {
             usleep(10000);
 #endif
 
-            poll_midi_events();
+            if (_harmonizer_app.params.use_midi_in) {
+                poll_midi_events();
+            }
         }
     } else {
         // offline mode
-        // TODO process input file until the end, write result to output
+        printf("Processing input in offline mode\n");
+        // TODO timer
+        while (!_harmonizer_app.finished) {
+            harmonizer_jack_process(1024, NULL);
+        }
     }
 }
 
@@ -207,16 +259,45 @@ void run_harmonizer_app() {
  * special realtime thread once for each audio cycle.
  */
 int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
-    int i;
+    _harmonizer_app.jack_time += nframes;
+    float jack_seconds = _harmonizer_app.jack_time / 48000.0f;
 
     // update harmonizer with midi events
-    harmonizer_midi_event_t evt;
-    while (pop_midi_event(&evt)) {
-        harmonizer_dsp_event(&_harmonizer_app.dsp, &evt);
+    if (_harmonizer_app.params.midi_in_fname) {
+        harmonizer_midi_event_t evt;
+        while (true) {
+            if (_harmonizer_app.midi_in_index >=
+                _harmonizer_app.midi_in[0].size()) {
+                _harmonizer_app.finished = true;
+                break;
+            }
+            evt = read_midi_event(_harmonizer_app.midi_in,
+                                  _harmonizer_app.midi_in_index);
+
+            if (evt.stamp == -1) {
+                // skip
+                _harmonizer_app.midi_in_index++;
+            } else if (evt.stamp < jack_seconds) {
+                harmonizer_dsp_event(&_harmonizer_app.dsp, &evt);
+                _harmonizer_app.midi_in_index++;
+            } else {
+                break;
+            }
+        }
+    } else {
+        harmonizer_midi_event_t evt;
+        while (pop_midi_event(&evt)) {
+            harmonizer_dsp_event(&_harmonizer_app.dsp, &evt);
+
+            if (_harmonizer_app.params.midi_input_out_fname) {
+                write_midi_event(_harmonizer_app.midi_input_out, evt);
+            }
+        }
     }
 
     // TODO dynamic allocation to support mono & stereo in input & output
     sample_t *in[HARMONIZER_CHANNELS], *out[HARMONIZER_CHANNELS];
+    int i;
 
     for (i = 0; i < HARMONIZER_CHANNELS; i++) {
         if (_harmonizer_app.params.use_jack_in) {
@@ -225,21 +306,23 @@ int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
                 input_chan = 0;
             }
 
-            in[i] = jack_port_get_buffer(
+            in[i] = (sample_t *)jack_port_get_buffer(
                 _harmonizer_app.jack.input_ports[input_chan], nframes);
         } else {
             if (_harmonizer_app.in[i] == NULL) {
-                _harmonizer_app.in[i] = calloc(nframes, sizeof(sample_t));
+                _harmonizer_app.in[i] =
+                    (sample_t *)calloc(nframes, sizeof(sample_t));
             }
             in[i] = _harmonizer_app.in[i];
         }
 
         if (_harmonizer_app.params.use_jack_out) {
-            out[i] = jack_port_get_buffer(_harmonizer_app.jack.output_ports[i],
-                                          nframes);
+            out[i] = (sample_t *)jack_port_get_buffer(
+                _harmonizer_app.jack.output_ports[i], nframes);
         } else {
             if (_harmonizer_app.out[i] == NULL) {
-                _harmonizer_app.out[i] = calloc(nframes, sizeof(sample_t));
+                _harmonizer_app.out[i] =
+                    (sample_t *)calloc(nframes, sizeof(sample_t));
             }
             out[i] = _harmonizer_app.out[i];
         }
@@ -254,7 +337,7 @@ int harmonizer_jack_process(jack_nframes_t nframes, void *arg) {
                       SEEK_SET);
                 read = tinywav_read_f(&_harmonizer_app.wav_in, in, nframes);
             } else {
-                fprintf(stderr, "End of file\n");
+                fprintf(stderr, "End of wav file\n");
                 _harmonizer_app.finished = true;
             }
         }
@@ -281,11 +364,16 @@ void destroy_harmonizer_app() {
     }
 
     // close all files
+    if (_harmonizer_app.params.wav_out_fname) {
+        tinywav_close_write(&_harmonizer_app.wav_out);
+    }
     if (_harmonizer_app.params.wav_input_out_fname) {
         tinywav_close_write(&_harmonizer_app.wav_input_out);
     }
-    if (_harmonizer_app.params.wav_out_fname) {
-        tinywav_close_write(&_harmonizer_app.wav_out);
+    if (_harmonizer_app.params.midi_input_out_fname) {
+        _harmonizer_app.midi_input_out.sortTracks();
+        _harmonizer_app.midi_input_out.write(
+            _harmonizer_app.params.midi_input_out_fname);
     }
 
     // remove dsp

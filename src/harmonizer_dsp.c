@@ -269,17 +269,7 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
     }
 
     // Setup parameters
-    dsp->pitch_alpha = 0.5;
-
-    // Setup voices
-    // TODO use midi input
-    /*
-    dsp->voices[0].active = true;
-    dsp->voices[0].target_period = 184;
-    dsp->voices[1].active = true;
-    dsp->voices[1].target_period = 184 / 1.25;
-    dsp->voices[2].active = true;
-    dsp->voices[2].target_period = 184 / 1.5;*/
+    dsp->pitch_alpha = 0.1;
 
     // Debug pitch detection
     dsp->pitch_log_file = NULL;
@@ -341,16 +331,16 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         // pitch detection
         float period =
             detect_period_continuous(dsp->pitch_detect[i], in, nframes);
-        // fprintf(stderr, "period = %f\n", period);
+
         if (dsp->pitch_log_file != NULL) {
             fprintf(dsp->pitch_log_file, "%0.2f\n", period);
         }
 
         if (period < 1 || period > 511)
             period = dsp->prev_period[i];
-        else
-            period = dsp->prev_period[i] * dsp->pitch_alpha +
-                     period * (1 - dsp->pitch_alpha);
+
+        period = dsp->prev_period[i] * dsp->pitch_alpha +
+                 period * (1 - dsp->pitch_alpha);
 
         // fprintf(stderr, "retained period = %f\n", period);
         dsp->prev_period[i] = period;
@@ -363,10 +353,10 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
                 continue;
             }
             float ratio = voice->target_period / period;
-            // shield against very high ratio. should never be higher than
-            // 3 octaves I guess (ratio = 8)
-            if (ratio > 8) {
-                ratio = 1;
+            // shield against very high ratio. should never be more than
+            // 3 octaves down I guess (ratio = 8)
+            while (ratio > 8) {
+                ratio /= 2;
             }
 
             shift_signal(rbuf_get(&dsp->sample_buf[i], 0), out, nframes, ratio,
@@ -378,7 +368,7 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         // add original signal * 2
         int u;
         for (u = 0; u < nframes; ++u) {
-            out[u] += in[u] * 0.;
+            out[u] += in[u] * 0.5;
             out[u] /= 2;
         }
     }

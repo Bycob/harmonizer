@@ -1,5 +1,8 @@
 #include "harmonizer_dsp.h"
 
+#include "math_utils.h"
+#include "fourier.h"
+
 // DEBUG
 void print_array(float *array, int nframes) {
     fprintf(stderr, "[");
@@ -46,55 +49,11 @@ void rbuf_destroy(rolling_buffer_t *rbuf) { free(rbuf->buf); }
 
 #define HARMONIZER_SAMPLE_BUF_COUNT 8
 
-#define HANN_SIZE 1024
-float *hann_window;
-
-float hann(float t) {
-    float s = sin(M_PI * t);
-    return s * s;
-    // return fminf(1, s * s * 50);
-}
-
-/** function to call at the beggining of the program to precompute the window
- * and accelerate the computations later */
-void precompute_hann() {
-    hann_window = (float *)calloc(HANN_SIZE, sizeof(float));
-    int i;
-    for (i = 0; i < HANN_SIZE; ++i) {
-        float t = i / (float)HANN_SIZE;
-        hann_window[i] = hann(t);
-    }
-}
-
 float midi_pitch_to_period(int midi_pitch) {
     const double exp = 1.05946309436; // 2^(1/12)
     const double base = 4186.01 / 512;
     double f = base * pow(exp, midi_pitch); // TODO fast exp
     return (float)(48000 / f);
-}
-
-void fft(float *in, fftwf_complex *out, int nframes) {
-    fftwf_plan p = fftwf_plan_dft_r2c_1d(nframes, in, out, FFTW_ESTIMATE);
-    fftwf_execute(p);
-    fftwf_destroy_plan(p);
-}
-
-/** Returns the fundamental period, in sample*/
-float fundamental_period(fftwf_complex *fourier, int nframes) {
-    int i;
-    float max_val = 0;
-    float max_idx = 0;
-    const int ignore_edges = 64;
-
-    for (i = ignore_edges; i < nframes / 2 - ignore_edges; ++i) {
-        float val =
-            fourier[i][0] * fourier[i][0] + fourier[i][1] * fourier[i][1];
-        if (val > max_val) {
-            max_val = val;
-            max_idx = i;
-        }
-    }
-    return max_idx == 0 ? 0 : (float)nframes / max_idx * 2;
 }
 
 /** Linear interpolation
@@ -249,8 +208,8 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
         rbuf_init(&dsp->sample_buf[i], buf_size * HARMONIZER_SAMPLE_BUF_COUNT,
                   buf_size);
         dsp->prev_period[i] = 1.0;
-        dsp->fft[i] =
-            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * buf_size);
+        // dsp->fft[i] =
+        //    (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * buf_size);
 
         dsp->pitch_detect[i] = alloc_pitch_detection_data();
 
@@ -270,6 +229,9 @@ void harmonizer_dsp_init(harmonizer_dsp_t *dsp) {
 
     // Setup parameters
     dsp->pitch_alpha = 0.1;
+
+    // fft
+    fft_allocate(dsp);
 
     // Debug pitch detection
     dsp->pitch_log_file = NULL;
@@ -312,6 +274,12 @@ void harmonizer_dsp_event(harmonizer_dsp_t *dsp, harmonizer_midi_event_t *evt) {
 
 int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
                            sample_t **in_stereo, sample_t **out_stereo) {
+
+    if (true) { // TODO allow switch
+        fft_process(dsp, nframes, in_stereo, out_stereo);
+        return 0;
+    }
+
     int i;
     sample_t *in, *out;
 

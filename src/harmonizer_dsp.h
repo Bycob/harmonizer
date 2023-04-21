@@ -76,10 +76,13 @@ typedef struct {
     rolling_buffer_t sample_buf[HARMONIZER_CHANNELS];
     sample_t prev_period[HARMONIZER_CHANNELS];
 
-    /** preallocated buffers to compute the fft */
-    fftwf_complex *fft[HARMONIZER_CHANNELS];
     pitch_detection_data pitch_detect[HARMONIZER_CHANNELS];
     float pitch_alpha;
+
+    /** preallocated buffers to compute the fft */
+    fftwf_complex *fft_buf[HARMONIZER_CHANNELS];
+    float *fft_in_buf[HARMONIZER_CHANNELS];
+    float *fft_out_buf[HARMONIZER_CHANNELS];
 
     /** file to log result of pitch detection for debugging */
     FILE *pitch_log_file;

@@ -16,6 +16,8 @@ add_subdirectory(third_party/)
 add_executable(harmonizer
     src/harmonizer_dsp.c
     src/pitch_detection.cc
+    src/fourier.c
+    src/math_utils.c
 
     src/harmonizer_app.cc
     src/harmonizer_midi.cc

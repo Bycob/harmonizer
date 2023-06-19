@@ -54,8 +54,6 @@ int fft_process(harmonizer_dsp_t *dsp, count_t nframes,
             int cpy_size;
             sample_t *cpy_dst;
 
-            // Il y a un problème dans fft_in, les deux parties de fft_in sont pas connectées entre elles
-            // TODO à vérifier en priorité
             if (offset < 0) {
                 cpy_size = win_size + offset;
                 cpy_dst = fft_in_buf + (-offset);
@@ -65,7 +63,7 @@ int fft_process(harmonizer_dsp_t *dsp, count_t nframes,
                 cpy_dst = fft_in_buf;
             }
             memcpy(cpy_dst, rbuf_get(&dsp->sample_buf[i], 0) + in_start, cpy_size * sizeof(sample_t));
-            printf("copy in [%d, %d] to fft_in [%d, %d]\n", max(0, offset), max(0, offset) + cpy_size, offset < 0 ? -offset : 0, (offset < 0 ? -offset : 0) + cpy_size);
+            // printf("copy in [%d, %d] to fft_in [%d, %d]\n", max(0, offset), max(0, offset) + cpy_size, offset < 0 ? -offset : 0, (offset < 0 ? -offset : 0) + cpy_size);
             
             if (nframes - offset < win_size) {
                 // frame is incomplete, will be processed at the next timestep
@@ -79,21 +77,26 @@ int fft_process(harmonizer_dsp_t *dsp, count_t nframes,
             }
             
             // TODO remove
-            memcpy(fft_out_buf, fft_in_buf, win_size * sizeof(sample_t));
-            printf("debug copy fft_in to fft_out\n");
+            // memcpy(fft_out_buf, fft_in_buf, win_size * sizeof(sample_t));
+            // printf("debug copy fft_in to fft_out\n");
  
             // fft
             fft(fft_in_buf, fft_buf, win_size);
 
             // low pass filter (0 half of the spectrum)
-            for (int i = win_hsize; i < win_size; ++i) {
+            for (int i = 8; i < win_hsize; ++i) {
                 // set to 0
                 fft_buf[i][0] = 0;
                 fft_buf[i][1] = 0;
+                fft_buf[win_size - i][0] = 0;
+                fft_buf[win_size - i][1] = 0;
             }
 
             // ifft
-            // ifft(fft_buf, fft_out_buf, win_size);
+            ifft(fft_buf, fft_out_buf, win_size);
+            for (int i = 0; i < win_size; ++i) {
+                fft_out_buf[i] /= 128;
+            }
             
             // copy buffer to output with an offset
             int out_off = offset + win_hsize;

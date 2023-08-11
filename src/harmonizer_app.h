@@ -9,6 +9,9 @@
 #include "harmonizer_dsp.h"
 #include "harmonizer_midi.h"
 #include "jack_backend.h"
+#ifdef VISUALIZER
+#include "visualizer.h"
+#endif // VISUALIZER
 
 typedef struct {
     bool use_jack_in;
@@ -25,6 +28,10 @@ typedef struct {
     char *wav_input_out_fname;
     /// midi parameters
     harmonizer_midi_params_t midi;
+#ifdef VISUALIZER
+    // TODO visualizer_params?
+    bool run_visualizer;
+#endif // VISUALIZER
     // debug
     char *pitch_log_fname;
 } harmonizer_app_params_t;
@@ -36,6 +43,10 @@ typedef struct {
     bool use_jack;
     jack_backend_t jack;
     int64_t jack_time;
+
+#ifdef VISUALIZER
+    visualizer_t visualizer;
+#endif // VISUALIZER
 
     /// flag used to signal main thread that the app has finished reading the
     /// input file

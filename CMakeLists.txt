@@ -13,7 +13,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 # Add third party
 add_subdirectory(third_party/)
 
-add_executable(harmonizer
+set(HARMONIZER_SOURCES
     src/harmonizer_dsp.c
     src/pitch_detection.cc
     src/fourier.c
@@ -23,6 +23,18 @@ add_executable(harmonizer
     src/harmonizer_midi.cc
     src/jack_backend.c
     src/main.cc
+)
+
+# Visualizer
+if (SDL2_FOUND)
+    message(STATUS "SDL2 detected, building visualizer")
+    add_definitions(-DVISUALIZER)
+    list(APPEND HARMONIZER_SOURCES
+        src/visualizer.c)
+endif(SDL2_FOUND)
+
+add_executable(harmonizer
+    ${HARMONIZER_SOURCES}
 )
 
 include_directories(${THIRD_PARTY_INCLUDES})
@@ -37,5 +49,6 @@ target_link_libraries(harmonizer
 # Alsa
 find_package(ALSA REQUIRED)
 if (ALSA_FOUND)
-    target_link_libraries (harmonizer ${ALSA_LIBRARIES})
+    target_link_libraries(harmonizer ${ALSA_LIBRARIES})
 endif(ALSA_FOUND)
+

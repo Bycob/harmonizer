@@ -70,6 +70,11 @@ static void print_help() {
            "typically from the midi keyboard."
            "\n\t--no_play_audio Do not play output audio. Output audio can "
            "still be saved in a file"
+#ifdef VISUALIZER
+           "\n"
+           "\nVisualizer:"
+           "\n\t--visualize Run frequency visualizer"
+#endif // VISUALIZER
            "\n"
            "\n Debug:"
            "\n\t--pitch_log_file Log the detected pitch to a file"
@@ -92,6 +97,9 @@ void init_harmonizer_app(int argc, char **argv) {
         {"save_audio_input", required_argument, 0, 's'},
         {"save_midi_input", required_argument, 0, 'i'},
         {"no_play_audio", no_argument, 0, 'p'},
+#ifdef VISUALIZER
+        {"visualize", no_argument, 0, 'v'},
+#endif // VISUALIZER
         {"pitch_log_file", required_argument, 0, 'd'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}};
@@ -100,6 +108,8 @@ void init_harmonizer_app(int argc, char **argv) {
     params.use_jack_out = true;
     params.use_midi_in = true;
     params.midi.interface_name = "";
+
+    params.run_visualizer = false;
 
     int arg;
     int long_index = 0;
@@ -132,6 +142,11 @@ void init_harmonizer_app(int argc, char **argv) {
         case 'p':
             params.use_jack_out = false;
             break;
+#ifdef VISUALIZER
+        case 'v':
+            params.run_visualizer = true;
+            break;
+#endif // VISUALIZER
         case 'd':
             params.pitch_log_fname = strdup(optarg);
             break;
@@ -206,6 +221,11 @@ void init_harmonizer_app(int argc, char **argv) {
         HANDLE_ERR(init_midi(&_harmonizer_app.params.midi));
     }
 
+#ifdef VISUALIZER
+    // Start Visualizer
+    HANDLE_ERR(visualizer_start(&_harmonizer_app.visualizer));
+#endif // VISUALIZER
+
     // init DSP
     harmonizer_dsp_init(&_harmonizer_app.dsp);
 
@@ -240,6 +260,15 @@ void run_harmonizer_app() {
             usleep(10000);
 #endif
 
+#ifdef VISUALIZER
+            if (_harmonizer_app.params.run_visualizer) {
+                visualizer_set_data(&_harmonizer_app.visualizer,
+                                    _harmonizer_app.dsp.fft_buf[0], 256);
+                visualizer_refresh(&_harmonizer_app.visualizer);
+            }
+#endif
+
+            // TODO does this hang?
             if (_harmonizer_app.params.use_midi_in) {
                 poll_midi_events();
             }
@@ -247,7 +276,7 @@ void run_harmonizer_app() {
     } else {
         // offline mode
         printf("Processing input in offline mode\n");
-        // TODO timer
+        // TODO compute processing time
         while (!_harmonizer_app.finished) {
             harmonizer_jack_process(1024, NULL);
         }
@@ -362,6 +391,13 @@ void destroy_harmonizer_app() {
     if (_harmonizer_app.params.use_jack_in) {
         jack_client_close(_harmonizer_app.jack.client);
     }
+
+#ifdef VISUALIZER
+    // visualizer
+    if (_harmonizer_app.params.run_visualizer) {
+        visualizer_destroy(&_harmonizer_app.visualizer);
+    }
+#endif
 
     // close all files
     if (_harmonizer_app.params.wav_out_fname) {

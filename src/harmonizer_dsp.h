@@ -86,6 +86,9 @@ typedef struct {
 
     /** file to log result of pitch detection for debugging */
     FILE *pitch_log_file;
+
+    /** User set parameters */
+    bool use_fft;
 } harmonizer_dsp_t;
 
 void harmonizer_dsp_init(harmonizer_dsp_t *dsp);

@@ -33,12 +33,14 @@ void fft(float *in, fftwf_complex *out, int nframes) {
 }
 
 void ifft(fftwf_complex *in, float *out, int nframes) {
-    fftwf_plan p = fftwf_plan_dft_c2r_1d(nframes, in, out, FFTW_ESTIMATE | FFTW_BACKWARD);
+    fftwf_plan p =
+        fftwf_plan_dft_c2r_1d(nframes, in, out, FFTW_ESTIMATE | FFTW_BACKWARD);
     fftwf_execute(p);
     fftwf_destroy_plan(p);
 }
 
 /** Returns the fundamental period, in sample*/
+// Does not work
 float fundamental_period(fftwf_complex *fourier, int nframes) {
     int i;
     float max_val = 0;

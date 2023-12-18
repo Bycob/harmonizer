@@ -1,7 +1,7 @@
 #include "harmonizer_dsp.h"
 
-#include "math_utils.h"
 #include "fourier.h"
+#include "math_utils.h"
 
 // DEBUG
 void print_array(float *array, int nframes) {
@@ -275,7 +275,7 @@ void harmonizer_dsp_event(harmonizer_dsp_t *dsp, harmonizer_midi_event_t *evt) {
 int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
                            sample_t **in_stereo, sample_t **out_stereo) {
 
-    if (true) { // TODO allow switch
+    if (dsp->use_fft) {
         fft_process(dsp, nframes, in_stereo, out_stereo);
         return 0;
     }
@@ -290,12 +290,6 @@ int harmonizer_dsp_process(harmonizer_dsp_t *dsp, count_t nframes,
         memcpy(rbuf_next(&dsp->sample_buf[i]), in, nframes * sizeof(sample_t));
         memset(out, 0, nframes * sizeof(sample_t));
 
-        // if (i == 1)
-        //    break;
-
-        // fft(in, dsp->fft[i], nframes);
-        // float period = fundamental_period(dsp->fft[i],
-        // nframes);
         // pitch detection
         float period =
             detect_period_continuous(dsp->pitch_detect[i], in, nframes);

@@ -28,6 +28,8 @@ typedef struct {
     char *wav_input_out_fname;
     /// midi parameters
     harmonizer_midi_params_t midi;
+    // PROCESSING
+    bool use_fft;
 #ifdef VISUALIZER
     // TODO visualizer_params?
     bool run_visualizer;

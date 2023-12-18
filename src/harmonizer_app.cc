@@ -70,9 +70,13 @@ static void print_help() {
            "typically from the midi keyboard."
            "\n\t--no_play_audio Do not play output audio. Output audio can "
            "still be saved in a file"
+           "\n"
+           "\n DSP:"
+           "\n\t--use_fft Use the fft pipeline to transform the sound, as "
+           "opposed to the temporal pipeline"
 #ifdef VISUALIZER
            "\n"
-           "\nVisualizer:"
+           "\n Visualizer:"
            "\n\t--visualize Run frequency visualizer"
 #endif // VISUALIZER
            "\n"
@@ -97,6 +101,7 @@ void init_harmonizer_app(int argc, char **argv) {
         {"save_audio_input", required_argument, 0, 's'},
         {"save_midi_input", required_argument, 0, 'i'},
         {"no_play_audio", no_argument, 0, 'p'},
+        {"use_fft", no_argument, 0, 'f'},
 #ifdef VISUALIZER
         {"visualize", no_argument, 0, 'v'},
 #endif // VISUALIZER
@@ -108,6 +113,8 @@ void init_harmonizer_app(int argc, char **argv) {
     params.use_jack_out = true;
     params.use_midi_in = true;
     params.midi.interface_name = "";
+
+    params.use_fft = false;
 
     params.run_visualizer = false;
 
@@ -141,6 +148,9 @@ void init_harmonizer_app(int argc, char **argv) {
             break;
         case 'p':
             params.use_jack_out = false;
+            break;
+        case 'f':
+            params.use_fft = true;
             break;
 #ifdef VISUALIZER
         case 'v':
@@ -223,11 +233,15 @@ void init_harmonizer_app(int argc, char **argv) {
 
 #ifdef VISUALIZER
     // Start Visualizer
-    HANDLE_ERR(visualizer_start(&_harmonizer_app.visualizer));
+    if (_harmonizer_app.params.run_visualizer) {
+        HANDLE_ERR(visualizer_start(&_harmonizer_app.visualizer));
+    }
 #endif // VISUALIZER
 
     // init DSP
     harmonizer_dsp_init(&_harmonizer_app.dsp);
+    // DSP params
+    _harmonizer_app.dsp.use_fft = _harmonizer_app.params.use_fft;
 
     // Debug
     if (params.pitch_log_fname != NULL) {
@@ -262,6 +276,7 @@ void run_harmonizer_app() {
 
 #ifdef VISUALIZER
             if (_harmonizer_app.params.run_visualizer) {
+                // TODO 256 is a made up value
                 visualizer_set_data(&_harmonizer_app.visualizer,
                                     _harmonizer_app.dsp.fft_buf[0], 256);
                 visualizer_refresh(&_harmonizer_app.visualizer);
